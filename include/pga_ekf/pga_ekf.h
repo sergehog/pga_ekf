@@ -16,7 +16,7 @@ constexpr double kGravity = 9.80665;
 class PgaEKF
 {
   public:
-    static constexpr std::size_t kStateSize = 14;
+    static constexpr std::size_t kStateSize = 17;
     static constexpr std::size_t kImuSize = 6;
     static constexpr std::size_t kEnuSize = 3;
     using StateVector = Eigen::Matrix<double, kStateSize, 1>;
@@ -43,11 +43,11 @@ class PgaEKF
             return vec;
         }
 
-        ImuUncertainty uncertanty() const
+        ImuUncertainty uncertainty() const
         {
-            Eigen::DiagonalMatrix<double, kImuSize> uncertanty;
-            uncertanty.diagonal() << stdAx, stdAy, stdAz, stdGx, stdGy, stdGz;
-            return uncertanty.toDenseMatrix();
+            Eigen::DiagonalMatrix<double, kImuSize> uncertainty;
+            uncertainty.diagonal() << stdAx, stdAy, stdAz, stdGx, stdGy, stdGz;
+            return uncertainty.toDenseMatrix();
         }
     };
 
@@ -64,11 +64,11 @@ class PgaEKF
             return vec;
         }
 
-        EnuUncertainty uncertanty() const
+        EnuUncertainty uncertainty() const
         {
-            Eigen::DiagonalMatrix<double, kEnuSize> uncertanty;
-            uncertanty.diagonal() << stdX, stdY, stdZ;
-            return uncertanty.toDenseMatrix();
+            Eigen::DiagonalMatrix<double, kEnuSize> uncertainty;
+            uncertainty.diagonal() << stdX, stdY, stdZ;
+            return uncertainty.toDenseMatrix();
         }
     };
 
@@ -78,17 +78,24 @@ class PgaEKF
         Eigen::Quaterniond uncertainty;  // standard deviation of values
     };
 
-    //! Initialization must be performed at zero speed and with known Enu coordinate
+    //! Initialization at zero speed and acceleration, but with known Enu coordinate
     PgaEKF(const Enu initEnu) : _state(StateVector::Zero()), _uncertainty(UncertaintyMatrix::Identity())
     {
         _state[0] = 1;
-        _state[1] = initEnu.x / 2;
-        _state[2] = initEnu.y / 2;
-        _state[3] = initEnu.z / 2;
+        _state[1] = -initEnu.x / 2;
+        _state[2] = -initEnu.y / 2;
+        _state[3] = -initEnu.z / 2;
 
         Eigen::DiagonalMatrix<double, kStateSize> uncertainty;
-        uncertainty.diagonal() << 1, initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0;
+        uncertainty.diagonal() << 1, initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
+            0, 0, 0;
         _uncertainty = uncertainty.toDenseMatrix();
+    }
+
+    //! Ctor with direct initialization of underlying state and uncertainty
+    PgaEKF(const StateVector& initState, const UncertaintyMatrix& initUncertainty)
+        : _state(initState), _uncertainty(initUncertainty)
+    {
     }
 
     StateVector state() const { return _state; }
@@ -98,9 +105,9 @@ class PgaEKF
     Enu filteredEnu() const
     {
         Enu enu{};
-        enu.x = _state[1] * 2;
-        enu.y = _state[2] * 2;
-        enu.z = _state[3] * 2;
+        enu.x = -_state[1] * 2;
+        enu.y = -_state[2] * 2;
+        enu.z = -_state[3] * 2;
 
         enu.stdX = _uncertainty.row(1)[1] * 2;
         enu.stdY = _uncertainty.row(2)[2] * 2;
@@ -128,11 +135,11 @@ class PgaEKF
     //! Update with IMU data
     void updateImu(const Imu& imu)
     {
-        ImuUncertainty R = imu.uncertanty();
+        ImuUncertainty R = imu.uncertainty();
         ImuUpdateJacobianMatrix H;
         auto h = ImuUpdateJacobian(_state, H);
         std::cout << "Predicted: " << h.transpose() << std::endl;
-        auto y = imu.vector() - h;                            // Innovation
+        auto y = imu.vector() - h;  // Innovation
         std::cout << "Innovation: " << y.transpose() << std::endl;
         auto S = H * _uncertainty * H.transpose() + R;        // Innovation covariance
         auto K = _uncertainty * H.transpose() * S.inverse();  // Kalman Gate
@@ -140,11 +147,11 @@ class PgaEKF
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
     }
 
-//    //!
-//    void updateEnu(const Enu& enu) {}
-//
-//    //! Improves state, if stationary
-//    void zeroSpeedUpdate() {}
+    //    //!
+    //    void updateEnu(const Enu& enu) {}
+    //
+    //    //! Improves state, if stationary
+    //    void zeroSpeedUpdate() {}
 
   private:
     using PredictJacobianMatrix = Eigen::Matrix<double, kStateSize, kStateSize>;
@@ -156,79 +163,71 @@ class PgaEKF
 
     StateVector predictJacobian(const double dt, const StateVector& X, PredictJacobianMatrix& J)
     {
-        StateVector X2;
+        StateVector S;
         // clang-format off
-        X2[0] = (X[13] / 2.0 * X[6] + X[12] / 2.0 * X[5] + X[11] / 2.0 * X[4]) * dt + X[0];
-        X2[1] = ((-(X[4] / 2.0 * X[9])) - X[0] / 2.0 * X[8] + X[13] / 2.0 * X[7] - X[10] / 2.0 * X[5] +
-                 X[12] / 2.0 * X[3] + X[11] / 2.0 * X[2]) * dt + X[1];
-        X2[2] = ((-(X[0] / 2.0 * X[9])) + X[4] / 2.0 * X[8] - X[12] / 2.0 * X[7] - X[10] / 2.0 * X[6] +
-                 X[13] / 2.0 * X[3] - X[1] / 2.0 * X[11]) * dt + X[2];
-        X2[3] = (X[6] / 2.0 * X[9] + X[5] / 2.0 * X[8] + X[11] / 2.0 * X[7] - X[13] / 2.0 * X[2] - X[1] / 2.0 * X[12] -
-                 X[0] / 2.0 * X[10]) * dt + X[3];
-        X2[4] = ((-(X[12] / 2.0 * X[6])) + X[13] / 2.0 * X[5] - X[0] / 2.0 * X[11]) * dt + X[4];
-        X2[5] = (X[11] / 2.0 * X[6] - X[13] / 2.0 * X[4] - X[0] / 2.0 * X[12]) * dt + X[5];
-        X2[6] = ((-(X[11] / 2.0 * X[5])) + X[12] / 2.0 * X[4] - X[0] / 2.0 * X[13]) * dt + X[6];
-        X2[7] = (X[5] / 2.0 * X[9] - X[6] / 2.0 * X[8] - X[10] / 2.0 * X[4] - X[11] / 2.0 * X[3] + X[12] / 2.0 * X[2] -
-                 X[1] / 2.0 * X[13]) * dt + X[7];
-        X2[8] = (X[11] * X[9] + X[10] * X[12]) * dt + X[8];
-        X2[9] = (X[10] * X[13] - X[11] * X[8]) * dt + X[9];
-        X2[10] = ((-(X[13] * X[9])) - X[12] * X[8]) * dt + X[10];
-        X2[11] = X[11];
-        X2[12] = X[12];
-        X2[13] = X[13];
+        S[0] = (X[13] / 2.0 * X[6] + X[12] / 2.0 * X[5] + X[11] / 2.0 * X[4]) * dt + X[0]; // 1.0
+        S[1] = ((X[13] / 2.0 * X[5] - X[0] / 2.0 * X[11]) * X[9] + (X[12] / 2.0 * X[5] + X[11] / 2.0 * X[4]) * X[8] - X[16] / 2.0 * X[5] + ((-(X[15] / 2.0)) - X[10] / 2.0 * X[13]) * X[4] - X[0] / 2.0 * X[14] - X[0] / 2.0 * X[10] * X[12]) * dt * dt + ((-(X[4] / 2.0 * X[9])) - X[0] / 2.0 * X[8] + X[13] / 2.0 * X[7] - X[10] / 2.0 * X[5] + X[12] / 2.0 * X[3] + X[11] / 2.0 * X[2]) * dt + X[1]; // e0 ^ e1
+        S[2] = ((X[13] / 2.0 * X[6] + X[11] / 2.0 * X[4]) * X[9] + (X[12] / 2.0 * X[6] + X[0] / 2.0 * X[11]) * X[8] - X[16] / 2.0 * X[6] + (X[14] / 2.0 + X[10] / 2.0 * X[12]) * X[4] - X[0] / 2.0 * X[15] - X[0] / 2.0 * X[10] * X[13]) * dt * dt + ((-(X[0] / 2.0 * X[9])) + X[4] / 2.0 * X[8] - X[12] / 2.0 * X[7] - X[10] / 2.0 * X[6] + X[13] / 2.0 * X[3] - X[1] / 2.0 * X[11]) * dt + X[2]; // e0 ^ e2
+        S[3] = ((X[11] / 2.0 * X[5] + X[0] / 2.0 * X[13]) * X[9] + (X[0] / 2.0 * X[12] - X[11] / 2.0 * X[6]) * X[8] + (X[15] / 2.0 + X[10] / 2.0 * X[13]) * X[6] + (X[14] / 2.0 + X[10] / 2.0 * X[12]) * X[5] - X[0] / 2.0 * X[16]) * dt * dt + (X[6] / 2.0 * X[9] + X[5] / 2.0 * X[8] + X[11] / 2.0 * X[7] - X[13] / 2.0 * X[2] - X[1] / 2.0 * X[12] - X[0] / 2.0 * X[10]) * dt + X[3]; // e0 ^ e3
+        S[4] = ((-(X[12] / 2.0 * X[6])) + X[13] / 2.0 * X[5] - X[0] / 2.0 * X[11]) * dt + X[4]; // e1 ^ e2
+        S[5] = (X[11] / 2.0 * X[6] - X[13] / 2.0 * X[4] - X[0] / 2.0 * X[12]) * dt + X[5]; // e1 ^ e3
+        S[6] = ((-(X[11] / 2.0 * X[5])) + X[12] / 2.0 * X[4] - X[0] / 2.0 * X[13]) * dt + X[6]; // e2 ^ e3
+        S[7] = ((X[13] / 2.0 * X[4] - X[11] / 2.0 * X[6]) * X[9] + (X[12] / 2.0 * X[4] - X[11] / 2.0 * X[5]) * X[8] + ((-(X[14] / 2.0)) - X[10] / 2.0 * X[12]) * X[6] + (X[15] / 2.0 + X[10] / 2.0 * X[13]) * X[5] - X[16] / 2.0 * X[4]) * dt * dt + (X[5] / 2.0 * X[9] - X[6] / 2.0 * X[8] - X[10] / 2.0 * X[4] - X[11] / 2.0 * X[3] + X[12] / 2.0 * X[2] - X[1] / 2.0 * X[13]) * dt + X[7]; // e0 ^ (e1 ^ (e2 ^ e3))
+        S[8] = (X[11] * X[9] + X[14] + X[10] * X[12]) * dt + X[8]; // e0 ^ e1
+        S[9] = ((-(X[11] * X[8])) + X[15] + X[10] * X[13]) * dt + X[9]; // e0 ^ e2
+        S[10] = ((-(X[13] * X[9])) - X[12] * X[8] + X[16]) * dt + X[10]; // e0 ^ e3
+        S[11] = X[11]; // e1 ^ e2
+        S[12] = X[12]; // e1 ^ e3
+        S[13] = X[13]; // e2 ^ e3
+        S[14] = X[14]; // e0 ^ e1
+        S[15] = X[15]; // e0 ^ e2
+        S[16] = X[16]; // e0 ^ e3
+
+        J.row(0) << 1, 0, 0, 0, 0.5*X[11]*dt, 0.5*X[12]*dt, 0.5*X[13]*dt, 0, 0, 0, 0, 0.5*X[4]*dt, 0.5*X[5]*dt, 0.5*X[6]*dt, 0, 0, 0;
+        J.row(1) << -0.5*X[8]*dt + dt*dt*(-0.5*X[10]*X[12] - 0.5*X[11]*X[9] - 0.5*X[14]), 1, 0.5*X[11]*dt, 0.5*X[12]*dt, -0.5*X[9]*dt + dt*dt*(-0.5*X[10]*X[13] + 0.5*X[11]*X[8] - 0.5*X[15]), -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), 0, 0.5*X[13]*dt, -0.5*X[0]*dt + dt*dt*(0.5*X[11]*X[4] + 0.5*X[12]*X[5]), -0.5*X[4]*dt + dt*dt*(-0.5*X[0]*X[11] + 0.5*X[13]*X[5]), -0.5*X[5]*dt + dt*dt*(-0.5*X[0]*X[12] - 0.5*X[13]*X[4]), 0.5* X[2] *dt + dt*dt*(-0.5*X[0]*X[9] + 0.5*X[4]*X[8]), 0.5*X[3]*dt + dt*dt*(-0.5*X[0]*X[10] + 0.5*X[5]*X[8]), 0.5*X[7]*dt + dt*dt*(-0.5*X[10]*X[4] + 0.5*X[5]*X[9]), -0.5*X[0]*dt*dt, -0.5*X[4]*dt*dt, -0.5*X[5]*dt*dt;
+        J.row(2) << -0.5*X[9]*dt + dt*dt*(-0.5*X[10]*X[13] + 0.5*X[11]*X[8] - 0.5*X[15]), -0.5*X[11]*dt, 1, 0.5*X[13]*dt, 0.5*X[8]*dt + dt*dt*(0.5*X[10]*X[12] + 0.5*X[11]*X[9] + 0.5*X[14]), 0, -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), -0.5*X[12]*dt, 0.5*X[4]*dt + dt*dt*(0.5*X[0]*X[11] + 0.5*X[12]*X[6]), -0.5*X[0]*dt + dt*dt*(0.5*X[11]*X[4] + 0.5*X[13]*X[6]), -0.5*X[6]*dt + dt*dt*(-0.5*X[0]*X[13] + 0.5*X[12]*X[4]), -0.5*X[1]*dt + dt*dt*(0.5*X[0]*X[8] + 0.5*X[4]*X[9]), -0.5*X[7]*dt + dt*dt*(0.5*X[10]*X[4] + 0.5*X[6]*X[8]), 0.5*X[3]*dt + dt*dt*(-0.5*X[0]*X[10] + 0.5*X[6]*X[9]), 0.5*X[4]*dt*dt, -0.5*X[0]*dt*dt, -0.5*X[6]*dt*dt;
+        J.row(3) << -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), -0.5*X[12]*dt, -0.5*X[13]*dt, 1, 0, 0.5*X[8]*dt + dt*dt*(0.5*X[10]*X[12] + 0.5*X[11]*X[9] + 0.5*X[14]), 0.5*X[9]*dt + dt*dt*(0.5*X[10]*X[13] - 0.5*X[11]*X[8] + 0.5*X[15]), 0.5*X[11]*dt, 0.5*X[5]*dt + dt*dt*(0.5*X[0]*X[12] - 0.5*X[11]*X[6]), 0.5*X[6]*dt + dt*dt*(0.5*X[0]*X[13] + 0.5*X[11]*X[5]), -0.5*X[0]*dt + dt*dt*(0.5*X[12]*X[5] + 0.5*X[13]*X[6]), 0.5*X[7]*dt + dt*dt*(0.5*X[5]*X[9] - 0.5*X[6]*X[8]), -0.5*X[1]*dt + dt*dt*(0.5*X[0]*X[8] + 0.5*X[10]*X[5]), -0.5*X[2]*dt + dt*dt*(0.5*X[0]*X[9] + 0.5*X[10]*X[6]), 0.5*X[5]*dt*dt, 0.5*X[6]*dt*dt, -0.5*X[0]*dt*dt;
+        J.row(4) << -0.5*X[11]*dt, 0, 0, 0, 1, 0.5*X[13]*dt, -0.5*X[12]*dt, 0, 0, 0, 0, -0.5*X[0]*dt, -0.5*X[6]*dt, 0.5*X[5]*dt, 0, 0, 0;
+        J.row(5) << -0.5*X[12]*dt, 0, 0, 0, -0.5*X[13]*dt, 1, 0.5*X[11]*dt, 0, 0, 0, 0, 0.5*X[6]*dt, -0.5*X[0]*dt, -0.5*X[4]*dt, 0, 0, 0;
+        J.row(6) << -0.5*X[13]*dt, 0, 0, 0, 0.5*X[12]*dt, -0.5*X[11]*dt, 1, 0, 0, 0, 0, -0.5*X[5]*dt, 0.5*X[4]*dt, -0.5*X[0]*dt, 0, 0, 0;
+        J.row(7) << 0, -0.5*X[13]*dt, 0.5*X[12]*dt, -0.5*X[11]*dt, -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), 0.5*X[9]*dt + dt*dt*(0.5*X[10]*X[13] - 0.5*X[11]*X[8] + 0.5*X[15]), -0.5*X[8]*dt + dt*dt*(-0.5*X[10]*X[12] - 0.5*X[11]*X[9] - 0.5*X[14]), 1, -0.5*X[6]*dt + dt*dt*(-0.5*X[11]*X[5] + 0.5*X[12]*X[4]), 0.5*X[5]*dt + dt*dt*(-0.5*X[11]*X[6] + 0.5*X[13]*X[4]), -0.5*X[4]*dt + dt*dt*(-0.5*X[12]*X[6] + 0.5*X[13]*X[5]), -0.5*X[3]*dt + dt*dt*(-0.5*X[5]*X[8] - 0.5*X[6]*X[9]), 0.5*X[2]*dt + dt*dt*(-0.5*X[10]*X[6] + 0.5*X[4]*X[8]), -0.5*X[1]*dt + dt*dt*(0.5*X[10]*X[5] + 0.5*X[4]*X[9]), -0.5*X[6]*dt*dt, 0.5*X[5]*dt*dt, -0.5*X[4]*dt*dt;
+        J.row(8) << 0, 0, 0, 0, 0, 0, 0, 0, 1, X[11]*dt, X[12]*dt, X[9]*dt, X[10]*dt, 0, dt, 0, 0;
+        J.row(9) << 0, 0, 0, 0, 0, 0, 0, 0, -X[11]*dt, 1, X[13]*dt, -X[8]*dt, 0, X[10]*dt, 0, dt, 0;
+        J.row(10) << 0, 0, 0, 0, 0, 0, 0, 0, -X[12]*dt, -X[13]*dt, 1, 0, -X[8]*dt, -X[9]*dt, 0, 0, dt;
+        J.row(11) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0;
+        J.row(12) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0;
+        J.row(13) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0;
+        J.row(14) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0;
+        J.row(15) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0;
+        J.row(16) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
         // clang-format on
-        J.row(0) << 1, 0, 0, 0, 0.5 * X[11] * dt, 0.5 * X[12] * dt, 0.5 * X[13] * dt, 0, 0, 0, 0, 0.5 * X[4] * dt,
-            0.5 * X[5] * dt, 0.5 * X[6] * dt;
-        J.row(1) << -0.5 * X[8] * dt, 1, 0.5 * X[11] * dt, 0.5 * X[12] * dt, -0.5 * X[9] * dt, -0.5 * X[10] * dt, 0,
-            0.5 * X[13] * dt, -0.5 * X[0] * dt, -0.5 * X[4] * dt, -0.5 * X[5] * dt, 0.5 * X[2] * dt, 0.5 * X[3] * dt,
-            0.5 * X[7] * dt;
-        J.row(2) << -0.5 * X[9] * dt, -0.5 * X[11] * dt, 1, 0.5 * X[13] * dt, 0.5 * X[8] * dt, 0, -0.5 * X[10] * dt,
-            -0.5 * X[12] * dt, 0.5 * X[4] * dt, -0.5 * X[0] * dt, -0.5 * X[6] * dt, -0.5 * X[1] * dt, -0.5 * X[7] * dt,
-            0.5 * X[3] * dt;
-        J.row(3) << -0.5 * X[10] * dt, -0.5 * X[12] * dt, -0.5 * X[13] * dt, 1, 0, 0.5 * X[8] * dt, 0.5 * X[9] * dt,
-            0.5 * X[11] * dt, 0.5 * X[5] * dt, 0.5 * X[6] * dt, -0.5 * X[0] * dt, 0.5 * X[7] * dt, -0.5 * X[1] * dt,
-            -0.5 * X[2] * dt;
-        J.row(4) << -0.5 * X[11] * dt, 0, 0, 0, 1, 0.5 * X[13] * dt, -0.5 * X[12] * dt, 0, 0, 0, 0, -0.5 * X[0] * dt,
-            -0.5 * X[6] * dt, 0.5 * X[5] * dt;
-        J.row(5) << -0.5 * X[12] * dt, 0, 0, 0, -0.5 * X[13] * dt, 1, 0.5 * X[11] * dt, 0, 0, 0, 0, 0.5 * X[6] * dt,
-            -0.5 * X[0] * dt, -0.5 * X[4] * dt;
-        J.row(6) << -0.5 * X[13] * dt, 0, 0, 0, 0.5 * X[12] * dt, -0.5 * X[11] * dt, 1, 0, 0, 0, 0, -0.5 * X[5] * dt,
-            0.5 * X[4] * dt, -0.5 * X[0] * dt;
-        J.row(7) << 0, -0.5 * X[13] * dt, 0.5 * X[12] * dt, -0.5 * X[11] * dt, -0.5 * X[10] * dt, 0.5 * X[9] * dt,
-            -0.5 * X[8] * dt, 1, -0.5 * X[6] * dt, 0.5 * X[5] * dt, -0.5 * X[4] * dt, -0.5 * X[3] * dt, 0.5 * X[2] * dt,
-            -0.5 * X[1] * dt;
-        J.row(8) << 0, 0, 0, 0, 0, 0, 0, 0, 1, X[11] * dt, X[12] * dt, X[9] * dt, X[10] * dt, 0;
-        J.row(9) << 0, 0, 0, 0, 0, 0, 0, 0, -X[11] * dt, 1, X[13] * dt, -X[8] * dt, 0, X[10] * dt;
-        J.row(10) << 0, 0, 0, 0, 0, 0, 0, 0, -X[12] * dt, -X[13] * dt, 1, 0, -X[8] * dt, -X[9] * dt;
-        J.row(11) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0;
-        J.row(12) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0;
-        J.row(13) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
-        return X2;
+        return S;
     }
 
     ImuVector ImuUpdateJacobian(const StateVector& X, ImuUpdateJacobianMatrix& J)
     {
-        ImuVector h;
-        h[0] = kGravity * 2. * X[0] * X[5] - kGravity * 2. * X[4] * X[6];
-        h[1] = kGravity * 2. * X[0] * X[6] + kGravity * 2. * X[4] * X[5];
-        h[2] = kGravity * X[6] * X[6] + kGravity * X[5] * X[5] - kGravity * X[4] * X[4] - kGravity * X[0] * X[0];
-        h[3] = X[11];
-        h[4] = X[12];
-        h[5] = X[13];
+        ImuVector H;
+        H[0] = - (2.0 * X[4] * X[6] - 2.0 * X[0] * X[5]) * kGravity + X[14];
+        H[1] = - ((-(2.0 * X[0] * X[6])) - 2.0 * X[4] * X[5]) * kGravity + X[15];
+        H[2] = - ((-(X[6] * X[6])) - X[5] * X[5] + X[4] * X[4] + X[0] * X[0]) * kGravity + X[16];
+        H[3] = X[11];
+        H[4] = X[12];
+        H[5] = X[13];
 
         J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity,
-            -2.0 * X[4] * kGravity, 0, 0, 0, 0, 0, 0, 0;
-        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity, 2.0 * X[0] * kGravity,
-            0, 0, 0, 0, 0, 0, 0;
+            - 2.0 * X[4] * kGravity, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0;
+        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity,
+            2.0 * X[0] * kGravity, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0;
         J.row(2) << -2 * X[0] * kGravity, 0, 0, 0, -2 * X[4] * kGravity, 2 * X[5] * kGravity, 2 * X[6] * kGravity, 0, 0,
-            0, 0, 0, 0, 0;
-        J.row(3) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0;
-        J.row(4) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0;
-        J.row(5) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
-        return h;
+            0, 0, 0, 0, 0, 0, 0, 1;
+        J.row(3) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0;
+        J.row(4) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0;
+        J.row(5) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0;
+
+        return H;
     }
 
-    //Enu EnuUpdateJacobian(const StateVector& X, EnuUpdateJacobianMatrix& J) {}
+    // Enu EnuUpdateJacobian(const StateVector& X, EnuUpdateJacobianMatrix& J) {}
 };
 
 }  // namespace pga_ekf
