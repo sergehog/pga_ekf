@@ -89,8 +89,8 @@ class PgaEKF
         _state[3] = -initEnu.z / 2;
 
         Eigen::DiagonalMatrix<double, kStateSize> uncertainty;
-        uncertainty.diagonal() << 1, initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 1, 1, 1, 1, 1, 1;
+        uncertainty.diagonal() << 1, initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 1, 1, 1, 1;
         _uncertainty = uncertainty.toDenseMatrix();
     }
 
@@ -125,8 +125,7 @@ class PgaEKF
     {
         Orientation o{
             Eigen::Quaterniond(_state[0], -_state[6], -_state[5], -_state[4]),
-            Eigen::Quaterniond(
-                _uncertainty.row(0)[0], _uncertainty.row(6)[6], _uncertainty.row(5)[5], _uncertainty.row(4)[4])};
+            Eigen::Quaterniond(_uncertainty.row(0)[0], _uncertainty.row(6)[6], _uncertainty.row(5)[5], _uncertainty.row(4)[4])};
         return o;
     }
 
@@ -150,7 +149,7 @@ class PgaEKF
         std::cout << "Predicted: " << h.transpose() << std::endl;
         auto y = imu.vector() - h;  // Innovation
         std::cout << "Innovation: " << y.transpose() << std::endl;
-        auto S = H * _uncertainty * H.transpose() + R;   // Innovation covariance
+        auto S = H * _uncertainty * H.transpose() + R;        // Innovation covariance
         auto K = _uncertainty * H.transpose() * S.inverse();  // Kalman Gate
         _state = _state + K * y;
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
@@ -165,7 +164,7 @@ class PgaEKF
         std::cout << "Predicted: " << h.transpose() << std::endl;
         auto y = enu.vector() - h;  // Innovation
         std::cout << "Innovation: " << y.transpose() << std::endl;
-        auto S = H * _uncertainty * H.transpose() + R;   // Innovation covariance
+        auto S = H * _uncertainty * H.transpose() + R;        // Innovation covariance
         auto K = _uncertainty * H.transpose() * S.inverse();  // Kalman Gate
         _state = _state + K * y;
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
@@ -175,7 +174,6 @@ class PgaEKF
     // void updateZeroSpeed() {}
 
     // void updateZeroSpeedImu(const Imu& imu) {}
-
 
   private:
     using PredictJacobianMatrix = Eigen::Matrix<double, kStateSize, kStateSize>;
@@ -249,12 +247,12 @@ class PgaEKF
         H[4] = X[12] + X[21];
         H[5] = X[13] + X[22];
 
-        J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity,
-            -2.0 * X[4] * kGravity, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0;
-        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity, 2.0 * X[0] * kGravity,
-            0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0;
-        J.row(2) << -2 * X[0] * kGravity, 0, 0, 0, -2 * X[4] * kGravity, 2 * X[5] * kGravity, 2 * X[6] * kGravity, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0;
+        J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity, -2.0 * X[4] * kGravity, 0, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0;
+        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity, 2.0 * X[0] * kGravity, 0, 0, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0;
+        J.row(2) << -2 * X[0] * kGravity, 0, 0, 0, -2 * X[4] * kGravity, 2 * X[5] * kGravity, 2 * X[6] * kGravity, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0;
         J.row(3) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0;
         J.row(4) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0;
         J.row(5) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1;
@@ -269,12 +267,12 @@ class PgaEKF
         H[1] = 2.0 * X[5] * X[7] - 2.0 * X[3] * X[6] + 2.0 * X[1] * X[4] - 2.0 * X[0] * X[2];  // e0 ^ (e1 ^ e3)
         H[2] = 2.0 * X[6] * X[7] + 2.0 * X[3] * X[5] + 2.0 * X[2] * X[4] + 2.0 * X[0] * X[1];  // e0 ^ (e2 ^ e3)
 
-        J.row(0) << 2.0 * X[3], -2.0 * X[5], -2.0 * X[6], 2.0 * X[0], 2.0 * X[7], -2.0 * X[1], -2.0 * X[2], 2.0 * X[4],
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-        J.row(1) << -2.0 * X[2], 2.0 * X[4], -2.0 * X[0], -2.0 * X[6], 2.0 * X[1], 2.0 * X[7], -2.0 * X[3], 2.0 * X[5],
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-        J.row(2) << 2.0 * X[1], 2.0 * X[0], 2.0 * X[4], 2.0 * X[5], 2.0 * X[2], 2.0 * X[3], 2.0 * X[7], 2.0 * X[6], 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(0) << 2.0 * X[3], -2.0 * X[5], -2.0 * X[6], 2.0 * X[0], 2.0 * X[7], -2.0 * X[1], -2.0 * X[2], 2.0 * X[4], 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(1) << -2.0 * X[2], 2.0 * X[4], -2.0 * X[0], -2.0 * X[6], 2.0 * X[1], 2.0 * X[7], -2.0 * X[3], 2.0 * X[5], 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(2) << 2.0 * X[1], 2.0 * X[0], 2.0 * X[4], 2.0 * X[5], 2.0 * X[2], 2.0 * X[3], 2.0 * X[7], 2.0 * X[6], 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
         return H;
     }
 
