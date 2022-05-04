@@ -21,7 +21,7 @@ BraceWrapping:
   BeforeElse: true
   IndentBraces: false
 BreakBeforeBraces: Custom
-ColumnLimit: 120
+ColumnLimit: 130
 DerivePointerAlignment: false
 IncludeBlocks: Merge
 IncludeCategories:
