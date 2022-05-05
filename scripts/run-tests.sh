@@ -9,7 +9,7 @@ CURR_DIR=$(pwd)
 mkdir -p /tmp/tiny_pga_tests
 cd /tmp/tiny_pga_tests
 cmake -DCMAKE_BUILD_TYPE=Release $CURR_DIR
-make
+make -j4
 ctest
 
 

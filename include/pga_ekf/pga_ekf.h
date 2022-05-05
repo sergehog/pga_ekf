@@ -1,3 +1,20 @@
+/*
+* This file is part of the PGA-EKF distribution (https://github.com/sergehog/pga_ekf)
+* Copyright (c) 2022 Sergey Smirnov / Seregium Oy.
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, version 3.
+*
+* This program is distributed in the hope that it will be useful, but
+* WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+* General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef PGA_EKF_PGA_EKF_H
 #define PGA_EKF_PGA_EKF_H
 
@@ -147,10 +164,11 @@ class PgaEKF
         ImuUpdateJacobianMatrix H;
         auto h = ImuUpdateJacobian(_state, H);
         std::cout << "Predicted: " << h.transpose() << std::endl;
-        auto y = imu.vector() - h;  // Innovation
+        std::cout << "Given: " << imu.vector().transpose() << std::endl;
+        auto y = (imu.vector() - h).eval();  // Innovation
         std::cout << "Innovation: " << y.transpose() << std::endl;
         auto S = H * _uncertainty * H.transpose() + R;        // Innovation covariance
-        auto K = _uncertainty * H.transpose() * S.inverse();  // Kalman Gate
+        auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
         _state = _state + K * y;
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
     }
@@ -162,10 +180,11 @@ class PgaEKF
         EnuUpdateJacobianMatrix H;
         auto h = EnuUpdateJacobian(_state, H);
         std::cout << "Predicted: " << h.transpose() << std::endl;
-        auto y = enu.vector() - h;  // Innovation
+        std::cout << "Given: " << enu.vector().transpose() << std::endl;
+        auto y = (enu.vector() - h).eval();  // Innovation
         std::cout << "Innovation: " << y.transpose() << std::endl;
         auto S = H * _uncertainty * H.transpose() + R;        // Innovation covariance
-        auto K = _uncertainty * H.transpose() * S.inverse();  // Kalman Gate
+        auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
         _state = _state + K * y;
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
     }
