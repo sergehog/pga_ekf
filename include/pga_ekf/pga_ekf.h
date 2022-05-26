@@ -1,19 +1,19 @@
 /*
-* This file is part of the PGA-EKF distribution (https://github.com/sergehog/pga_ekf)
-* Copyright (c) 2022 Sergey Smirnov / Seregium Oy.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, version 3.
-*
-* This program is distributed in the hope that it will be useful, but
-* WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-* General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * This file is part of the PGA-EKF distribution (https://github.com/sergehog/pga_ekf)
+ * Copyright (c) 2022 Sergey Smirnov / Seregium Oy.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef PGA_EKF_PGA_EKF_H
 #define PGA_EKF_PGA_EKF_H
@@ -163,11 +163,14 @@ class PgaEKF
         ImuUncertainty R = imu.uncertainty();
         ImuUpdateJacobianMatrix H;
         auto h = ImuUpdateJacobian(_state, H);
+
         std::cout << "Predicted: " << h.transpose() << std::endl;
         std::cout << "Given: " << imu.vector().transpose() << std::endl;
         auto y = (imu.vector() - h).eval();  // Innovation
         std::cout << "Innovation: " << y.transpose() << std::endl;
-        auto S = H * _uncertainty * H.transpose() + R;        // Innovation covariance
+        std::cout << "Jacobian: " << std::endl << H << std::endl;
+
+        auto S = H * _uncertainty * H.transpose() + R;                 // Innovation covariance
         auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
         _state = _state + K * y;
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
@@ -183,16 +186,28 @@ class PgaEKF
         std::cout << "Given: " << enu.vector().transpose() << std::endl;
         auto y = (enu.vector() - h).eval();  // Innovation
         std::cout << "Innovation: " << y.transpose() << std::endl;
-        auto S = H * _uncertainty * H.transpose() + R;        // Innovation covariance
+        auto S = H * _uncertainty * H.transpose() + R;                 // Innovation covariance
         auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
         _state = _state + K * y;
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
     }
 
     //! Updates state when it's known that position is stationary
-    // void updateZeroSpeed() {}
-
-    // void updateZeroSpeedImu(const Imu& imu) {}
+    //! Very important
+    void updateZeroSpeedImu(const Imu& imu)
+    {
+        ImuUncertainty R = imu.uncertainty();
+        ImuUpdateJacobianMatrix H;
+        auto h = ImuUpdateJacobian(_state, H);
+        std::cout << "Predicted: " << h.transpose() << std::endl;
+        std::cout << "Given: " << imu.vector().transpose() << std::endl;
+        auto y = (imu.vector() - h).eval();  // Innovation
+        std::cout << "Innovation: " << y.transpose() << std::endl;
+        auto S = H * _uncertainty * H.transpose() + R;                 // Innovation covariance
+        auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
+        _state = _state + K * y;
+        _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
+    }
 
   private:
     using PredictJacobianMatrix = Eigen::Matrix<double, kStateSize, kStateSize>;
@@ -267,6 +282,29 @@ class PgaEKF
         H[5] = X[13] + X[22];
 
         J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity, -2.0 * X[4] * kGravity, 0, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity, 2.0 * X[0] * kGravity, 0, 0, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0;
+        J.row(2) << -2 * X[0] * kGravity, 0, 0, 0, -2 * X[4] * kGravity, 2 * X[5] * kGravity, 2 * X[6] * kGravity, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0;
+        J.row(3) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(4) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(5) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+
+        return H;
+    }
+
+    ImuVector ZeroSpeedImuUpdateJacobian(const StateVector& X, ImuUpdateJacobianMatrix& J)
+    {
+        ImuVector H;
+        H[0] = -(2.0 * X[4] * X[6] - 2.0 * X[0] * X[5]) * kGravity + X[14] + X[17];
+        H[1] = -((-(2.0 * X[0] * X[6])) - 2.0 * X[4] * X[5]) * kGravity + X[15] + X[18];
+        H[2] = -((-(X[6] * X[6])) - X[5] * X[5] + X[4] * X[4] + X[0] * X[0]) * kGravity + X[16] + X[19];
+        H[3] = X[11] + X[20];
+        H[4] = X[12] + X[21];
+        H[5] = X[13] + X[22];
+
+        J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity, -2.0 * X[4] * kGravity, 0, 0,
             0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0;
         J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity, 2.0 * X[0] * kGravity, 0, 0, 0,
             0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0;
@@ -294,30 +332,6 @@ class PgaEKF
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
         return H;
     }
-
-    //    ImuVector ImuZeroSpeedUpdateJacobian(const StateVector& X, ImuUpdateJacobianMatrix& J)
-    //    {
-    //        ImuVector H;
-    //        H[0] = - (2.0 * X[4] * X[6] - 2.0 * X[0] * X[5]) * kGravity + X[14] + X[17];
-    //        H[1] = - ((-(2.0 * X[0] * X[6])) - 2.0 * X[4] * X[5]) * kGravity + X[15] + X[18];
-    //        H[2] = - ((-(X[6] * X[6])) - X[5] * X[5] + X[4] * X[4] + X[0] * X[0]) * kGravity + X[16] + X[19];
-    //        H[3] = X[11] + X[20];
-    //        H[4] = X[12] + X[21];
-    //        H[5] = X[13] + X[22];
-    //
-    //        J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity,
-    //            - 2.0 * X[4] * kGravity, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,0,0,0,0,0;
-    //        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity,
-    //            2.0 * X[0] * kGravity, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,1,0,0,0,0;
-    //        J.row(2) << -2 * X[0] * kGravity, 0, 0, 0, -2 * X[4] * kGravity, 2 * X[5] * kGravity, 2 * X[6] * kGravity,
-    //        0, 0,
-    //            0, 0, 0, 0, 0, 0, 0, 1, 0,0,1,0,0,0;
-    //        J.row(3) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,0,0,1,0,0;
-    //        J.row(4) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,0,0,0,1,0;
-    //        J.row(5) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,0,0,0,0,1;
-    //
-    //        return H;
-    //    }
 };
 
 }  // namespace pga_ekf

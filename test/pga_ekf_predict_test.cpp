@@ -1,26 +1,24 @@
 /*
-* This file is part of the PGA-EKF distribution (https://github.com/sergehog/pga_ekf)
-* Copyright (c) 2022 Sergey Smirnov / Seregium Oy.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, version 3.
-*
-* This program is distributed in the hope that it will be useful, but
-* WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-* General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * This file is part of the PGA-EKF distribution (https://github.com/sergehog/pga_ekf)
+ * Copyright (c) 2022 Sergey Smirnov / Seregium Oy.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 
 #include <gtest/gtest.h>
 #include <pga_ekf/pga_ekf.h>
 #include <array>
 using namespace pga_ekf;
-
 
 //! Tests PgaEKF.predict(..) function
 //! @param tuple[0] - Initial (input) state
@@ -116,4 +114,3 @@ INSTANTIATE_TEST_CASE_P(
                     std::make_tuple(PgaEKF_PredictTest::kXAccelerationIn, PgaEKF_PredictTest::kXAccelerationExpected),
                     std::make_tuple(PgaEKF_PredictTest::kYAccelerationIn, PgaEKF_PredictTest::kYAccelerationExpected),
                     std::make_tuple(PgaEKF_PredictTest::kZAccelerationIn, PgaEKF_PredictTest::kZAccelerationExpected)));
-

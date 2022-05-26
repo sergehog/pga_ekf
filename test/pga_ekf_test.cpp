@@ -1,18 +1,18 @@
 /*
-* This file is part of the PGA-EKF distribution (https://github.com/sergehog/pga_ekf)
-* Copyright (c) 2022 Sergey Smirnov / Seregium Oy.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, version 3.
-*
-* This program is distributed in the hope that it will be useful, but
-* WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-* General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * This file is part of the PGA-EKF distribution (https://github.com/sergehog/pga_ekf)
+ * Copyright (c) 2022 Sergey Smirnov / Seregium Oy.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <gtest/gtest.h>
@@ -99,64 +99,44 @@ TEST(PgaEKF_Test, BasicUpdateImuTest)
     EXPECT_EQ(ekf.filteredOrientation().uncertainty.z(), 1);
 }
 
+TEST(PgaEKFTest, UncertaintyGrowDuringAccelerationTest)
+{
+    PgaEKF::Enu enu{0, 0, 0, 1e-8, 1e-8, 1e-8};
+    PgaEKF ekf(enu);
+    std::cout << "State before Imu Update: " << ekf.state().transpose() << std::endl;
+    PgaEKF::Imu imu{1, 0, -pga_ekf::kGravity, 0, 0, 0, 1e-8, 1e-8, 1e-8, 1e-10, 1e-10, 1e-10};
+    ekf.updateImu(imu);
+    // velocity and acceleration are known to be 0 with 0 uncertainty -> it stays this way
+    EXPECT_EQ(ekf.uncertainty().row(14)[14], 0.0);
+    EXPECT_EQ(ekf.uncertainty().row(15)[15], 0.0);
+    EXPECT_EQ(ekf.uncertainty().row(16)[16], 0.0);
+    // this time acceleration is not affected, instead, orientation is adjusted
+    EXPECT_EQ(ekf.state()[14], 0.0);
+    EXPECT_GT(ekf.state()[5], 0.0);
 
-// TEST(PgaEKFTest, AccPositiveXTest)
-//{
-//     PgaEKF::Enu enu{0, 0, 0, 0.001, 0.001, 0.001};
-//     PgaEKF ekf(enu);
-//     std::cout << "Initial State: " << ekf.state().transpose() << std::endl;
-//     std::cout << "Initial Uncertainty: " << std::endl;
-//     std::cout << ekf.uncertainty() << std::endl << std::endl;
-//     //    EXPECT_NEAR(ekf.uncertainty().row(5)[5], 1, 1e-10);
-//     //    EXPECT_NEAR(ekf.uncertainty().row(6)[6], 1, 1e-10);
-//     //    EXPECT_NEAR(ekf.uncertainty().row(7)[7], 1, 1e-10);
-//     PgaEKF::Imu imu{1, 0, -pga_ekf::kGravity, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1};
-//     ekf.updateImu(imu);
-//     //    EXPECT_NEAR(ekf.uncertainty().row(5)[5], 1, 1e-10);
-//     //    EXPECT_LT(ekf.uncertainty().row(6)[6], 0.003);
-//     //    EXPECT_LT(ekf.uncertainty().row(7)[7], 0.003);
-//
-//     std::cout << "State after IMU update: " << ekf.state().transpose() << std::endl;
-//     std::cout << "Uncertainty after IMU update: " << std::endl;
-//     std::cout << ekf.uncertainty() << std::endl << std::endl;
-// }
+    std::cout << "State after Imu Update: " << ekf.state().transpose() << std::endl;
+    ekf.predict(0.1, 0.01);
 
-// TEST(PgaEKFTest, MovingXPositiveTest)
-//{
-//     PgaEKF::Enu enu{0, 0, 0, 0.001, 0.001, 0.001};
-//     PgaEKF ekf(enu);
-//
-//     std::cout << "Initial State: " << ekf.state().transpose() << std::endl;
-//     PgaEKF::Imu _inputImu{1, 0, -pga_ekf::kGravity, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1};
-//     ekf.updateImu(_inputImu);
-//     std::cout << "State after Imu Update: " << ekf.state().transpose() << std::endl;
-// }
+    std::cout << "State after Predict: " << ekf.state().transpose() << std::endl;
 
-// TEST(PgaEKFTest, UncertaintyGrowDuringAccelerationTest)
-//{
-//     PgaEKF::Enu enu{0, 0, 0, 1e-8, 1e-8, 1e-8};
-//     PgaEKF ekf(enu);
-//     std::cout << "State before Imu Update: " << ekf.state().transpose() << std::endl;
-//     PgaEKF::Imu _inputImu{1, 0, -pga_ekf::kGravity, 0, 0, 0, 1e-8, 1e-8, 1e-8, 1e-10, 1e-10, 1e-10};
-//     ekf.updateImu(_inputImu);
-//     std::cout << "State after Imu Update: " << ekf.state().transpose() << std::endl;
-//
-//     ekf.predict(0.1, 1e-8);
-//
-//     std::cout << "State after Predict: " << ekf.state().transpose() << std::endl;
-//
-//     // Orientation Uncertainty Grows During Acceleration
-//     EXPECT_GE(ekf.uncertainty().row(8)[8], 0.01);
-//     EXPECT_GE(ekf.uncertainty().row(9)[9], 0.01);
-//     EXPECT_GE(ekf.uncertainty().row(10)[10], 0.01);
-////    std::cout << "Uncertainty after predict: " << std::endl;
-////    std::cout << ekf.uncertainty() << std::endl << std::endl;
-//
-//    // Angular Momentum uncertainty stays zero
-////    EXPECT_NEAR(ekf.uncertainty().row(11)[11], 0., 1e-7);
-////    EXPECT_NEAR(ekf.uncertainty().row(12)[12], 0., 1e-7);
-////    EXPECT_NEAR(ekf.uncertainty().row(13)[13], 0., 1e-7);
-//}
+    // Acceleration Uncertainty Grows During Predict
+    EXPECT_GT(ekf.uncertainty().row(14)[14], 0.0);
+    EXPECT_GT(ekf.uncertainty().row(15)[15], 0.0);
+    EXPECT_GT(ekf.uncertainty().row(16)[16], 0.0);
+
+    ekf.updateImu(imu);
+    std::cout << "State after second Imu Update: " << ekf.state().transpose() << std::endl;
+
+    // now acceleration shall get affected
+    EXPECT_GT(ekf.state()[14], 0.0);
+    // while speed is still 0
+    EXPECT_EQ(ekf.state()[8], 0.0);
+
+    // Angular Momentum uncertainty stays zero all the time, as no gyro was involved
+    EXPECT_NEAR(ekf.uncertainty().row(11)[11], 0., 1e-7);
+    EXPECT_NEAR(ekf.uncertainty().row(12)[12], 0., 1e-7);
+    EXPECT_NEAR(ekf.uncertainty().row(13)[13], 0., 1e-7);
+}
 
 // TEST(PgaEKFTest, MoveTowardsPositiveXTest)
 //{
