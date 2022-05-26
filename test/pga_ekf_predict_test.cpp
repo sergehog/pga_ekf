@@ -24,7 +24,7 @@ using namespace pga_ekf;
 //! @param tuple[0] - Initial (input) state
 //! @param tuple[1] - Expected (output) state
 class PgaEKF_PredictTest
-    : public ::testing::TestWithParam<std::tuple<std::array<double, PgaEKF::kStateSize>, std::array<double, PgaEKF::kStateSize>>>
+    : public ::testing::TestWithParam<std::tuple<std::array<double, kStateSize>, std::array<double, kStateSize>>>
 {
   public:
     constexpr static double kProcessNoise = 0.1;
@@ -33,52 +33,52 @@ class PgaEKF_PredictTest
     constexpr static double kTimeDelta = 0.1;
     constexpr static double kAccuracy = 1e-10;
 
-    constexpr static std::array<double, PgaEKF::kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                                             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kStationaryExpected = kStationaryIn;
-    constexpr static std::array<double, PgaEKF::kStateSize> kStationary2In = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0,
-                                                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kStationary2Expected = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0,
-                                                                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kXVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0,
-                                                                            0, 0, 0, 0, 0, 0, 0, 0, 0,         0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kXVelocityExpected = {
-        1, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kYVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0,
-                                                                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,         0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kYVelocityExpected = {
-        1, 0, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kZVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0,
+    constexpr static std::array<double, kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kStationaryExpected = kStationaryIn;
+    constexpr static std::array<double, kStateSize> kStationary2In = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0,
+                                                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kStationary2Expected = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0,
                                                                             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kZVelocityExpected = {
+    constexpr static std::array<double, kStateSize> kXVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0,
+                                                                    0, 0, 0, 0, 0, 0, 0, 0, 0,         0, 0};
+    constexpr static std::array<double, kStateSize> kXVelocityExpected = {
+        1, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kYVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0,
+                                                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,         0};
+    constexpr static std::array<double, kStateSize> kYVelocityExpected = {
+        1, 0, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kZVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0,
+                                                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kZVelocityExpected = {
         1, 0, 0, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kXAccelerationIn = {1, 0, 0,      0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                                                0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kXAccelerationExpected = {
+    constexpr static std::array<double, kStateSize> kXAccelerationIn = {1, 0, 0,      0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                                        0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kXAccelerationExpected = {
         1, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0,
         0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kYAccelerationIn = {1, 0, 0, 0,      0, 0, 0, 0, 0, 0, 0, 0,
-                                                                                0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kYAccelerationExpected = {
+    constexpr static std::array<double, kStateSize> kYAccelerationIn = {1, 0, 0, 0,      0, 0, 0, 0, 0, 0, 0, 0,
+                                                                        0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kYAccelerationExpected = {
         1, 0, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0, 0, 0, 0, 0,
         0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kZAccelerationIn = {1, 0, 0, 0, 0,      0, 0, 0, 0, 0, 0, 0,
-                                                                                0, 0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kZAccelerationExpected = {
+    constexpr static std::array<double, kStateSize> kZAccelerationIn = {1, 0, 0, 0, 0,      0, 0, 0, 0, 0, 0, 0,
+                                                                        0, 0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kZAccelerationExpected = {
         1, 0, 0, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0, 0, 0,
         0, 0, 0};
 
   public:
-    std::array<double, PgaEKF::kStateSize> _expectedState{};
+    std::array<double, kStateSize> _expectedState{};
     PgaEKF::StateVector _inputState;
 
     PgaEKF_PredictTest()
     {
-        std::array<double, PgaEKF::kStateSize> input{};
+        std::array<double, kStateSize> input{};
         std::tie(input, _expectedState) = GetParam();
 
         // convert array<...> into actual State vector
-        for (std::size_t i = 0UL; i < PgaEKF::kStateSize; i++)
+        for (std::size_t i = 0UL; i < kStateSize; i++)
         {
             _inputState[i] = input[i];
         }
@@ -92,12 +92,12 @@ TEST_P(PgaEKF_PredictTest, ParametrizedTest)
     PgaEKF ekf(_inputState, uncertainty);
     ekf.predict(kTimeDelta, kProcessNoise);
 
-    for (std::size_t i = 0UL; i < PgaEKF::kStateSize; i++)
+    for (std::size_t i = 0UL; i < kStateSize; i++)
     {
         EXPECT_NEAR(ekf.state()[i], _expectedState[i], kAccuracy) << ", i=" << i;
     }
 
-    for (std::size_t i = 0UL; i < PgaEKF::kStateSize; i++)
+    for (std::size_t i = 0UL; i < kStateSize; i++)
     {
         EXPECT_NEAR(ekf.uncertainty().row(i)[i], kProcessNoise + kAccuracy, kAccuracy) << "i=" << i;
     }

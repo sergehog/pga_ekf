@@ -24,6 +24,52 @@
 namespace pga_ekf
 {
 
+//! Named indexes of the State Vector
+//! Intentionally made as classical struct, so visibility is inside of the namespace
+enum StateIndex : std::size_t
+{
+    /// 8 components of the PGA Motor,
+    /// Encodes Body Frame Pose in some other global (ENU-like) coordinate frame
+    kMSC = 0,
+    kMScalar = kMSC,
+    kM01 = 1,
+    kM02 = 2,
+    kM03 = 3,
+    kM12 = 4,
+    kM13 = 5,
+    kM23 = 6,
+    kM0123 = 7,
+
+    /// 6 components of the Rate bivector
+    /// Encodes Velocity (including Angular) in body frame
+    kR01 = 8,
+    kR02 = 9,
+    kR03 = 10,
+    kR12 = 11,
+    kR13 = 12,
+    kR23 = 13,
+
+    /// 3 components of Acceleration bivector
+    /// if body is stationary, acceleration is zero
+    kA01 = 14,
+    kA02 = 15,
+    kA03 = 16,
+    // kA12 = 17,
+    // kA23 = 18,
+    // kA31 = 19,
+
+    /// 3 components for Accelerometer biases
+    kBAX = 17,
+    kBAY = 18,
+    kBAZ = 19,
+    /// 3 components for Gyroscope biases ?
+    kBGX = 20,
+    kBGY = 21,
+    kBGZ = 22,
+
+    kStateSize = 23
+};
+
 //! Gravity constant
 constexpr double kGravity = 9.80665;
 
@@ -31,11 +77,11 @@ constexpr double kGravity = 9.80665;
 //! - IMU data in body-frame
 //! - ENU Position in world-frame - can be obtained from GPS or some other sensor
 //! We loosely call global coordinate frame "ENU",
-//! however only real constraint for it is that last "U" coordinate points up
+//! however, only real constraint for it is that last "U" coordinate points up
 class PgaEKF
 {
   public:
-    static constexpr std::size_t kStateSize = 23;
+    // static constexpr std::size_t kStateSize = 23;
     static constexpr std::size_t kImuSize = 6;
     static constexpr std::size_t kEnuSize = 3;
     using StateVector = Eigen::Matrix<double, kStateSize, 1>;
@@ -49,11 +95,11 @@ class PgaEKF
 
     struct Imu
     {
-        double ax, ay, az;  //! accelerometer values
-        double gx, gy, gz;  //! gyroscope values
+        double ax, ay, az;  //!> accelerometer values
+        double gx, gy, gz;  //!> gyroscope values
 
-        double stdAx, stdAy, stdAz;  //! standard deviation of accelerometer values
-        double stdGx, stdGy, stdGz;  //! standard deviation of gyroscope values
+        double stdAx, stdAy, stdAz;  //!> standard deviation of accelerometer values
+        double stdGx, stdGy, stdGz;  //!> standard deviation of gyroscope values
 
         ImuVector vector() const
         {
@@ -71,11 +117,11 @@ class PgaEKF
     };
 
     //! Positive Z in ENU measurements must be true UP (i.e. opposite of gravity)
-    //! X, Y not necessarily need to correspond to East-North, but still be accurate enough
+    //! X, Y not necessarily need to correspond to East-North
     struct Enu
     {
-        double x, y, z;           // Global Position values
-        double stdX, stdY, stdZ;  // standard deviation of values
+        double x, y, z;           //!> Global Position values
+        double stdX, stdY, stdZ;  //!> standard deviation of values
         EnuVector vector() const
         {
             Eigen::Matrix<double, kEnuSize, 1> vec;
@@ -93,17 +139,17 @@ class PgaEKF
 
     struct Orientation
     {
-        Eigen::Quaterniond orientation;  //! global orientation values (in ENU space)
-        Eigen::Quaterniond uncertainty;  //! standard deviation of values
+        Eigen::Quaterniond orientation;  //!> global orientation values (in ENU space)
+        Eigen::Quaterniond uncertainty;  //!> standard deviation of values
     };
 
     //! Initialization with zero speed and acceleration, but at known ENU coordinate
     PgaEKF(const Enu initEnu) : _state(StateVector::Zero()), _uncertainty(UncertaintyMatrix::Identity())
     {
-        _state[0] = 1;
-        _state[1] = -initEnu.x / 2;
-        _state[2] = -initEnu.y / 2;
-        _state[3] = -initEnu.z / 2;
+        _state[kMSC] = 1;
+        _state[kM01] = -initEnu.x / 2;
+        _state[kM02] = -initEnu.y / 2;
+        _state[kM03] = -initEnu.z / 2;
 
         Eigen::DiagonalMatrix<double, kStateSize> uncertainty;
         uncertainty.diagonal() << 1, initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -111,7 +157,7 @@ class PgaEKF
         _uncertainty = uncertainty.toDenseMatrix();
     }
 
-    //! Ctor with direct initialization of underlying state and uncertainty
+    //! Initialization with underlying state and uncertainty
     PgaEKF(const StateVector& initState, const UncertaintyMatrix& initUncertainty)
         : _state(initState), _uncertainty(initUncertainty)
     {
@@ -193,8 +239,7 @@ class PgaEKF
     }
 
     //! Updates state when it's known that position is stationary
-    //! Very important
-    void updateZeroSpeedImu(const Imu& imu)
+    void updateStationaryImu(const Imu& imu)
     {
         ImuUncertainty R = imu.uncertainty();
         ImuUpdateJacobianMatrix H;
@@ -221,52 +266,53 @@ class PgaEKF
     {
         StateVector S;
         // clang-format off
-        S[0] = (X[13] / 2.0 * X[6] + X[12] / 2.0 * X[5] + X[11] / 2.0 * X[4]) * dt + X[0];
-        S[1] = ((X[13] / 2.0 * X[5] - X[0] / 2.0 * X[11]) * X[9] + (X[12] / 2.0 * X[5] + X[11] / 2.0 * X[4]) * X[8] - X[16] / 2.0 * X[5] + ((-(X[15] / 2.0)) - X[10] / 2.0 * X[13]) * X[4] - X[0] / 2.0 * X[14] - X[0] / 2.0 * X[10] * X[12]) * dt * dt + ((-(X[4] / 2.0 * X[9])) - X[0] / 2.0 * X[8] + X[13] / 2.0 * X[7] - X[10] / 2.0 * X[5] + X[12] / 2.0 * X[3] + X[11] / 2.0 * X[2]) * dt + X[1];
-        S[2] = ((X[13] / 2.0 * X[6] + X[11] / 2.0 * X[4]) * X[9] + (X[12] / 2.0 * X[6] + X[0] / 2.0 * X[11]) * X[8] - X[16] / 2.0 * X[6] + (X[14] / 2.0 + X[10] / 2.0 * X[12]) * X[4] - X[0] / 2.0 * X[15] - X[0] / 2.0 * X[10] * X[13]) * dt * dt + ((-(X[0] / 2.0 * X[9])) + X[4] / 2.0 * X[8] - X[12] / 2.0 * X[7] - X[10] / 2.0 * X[6] + X[13] / 2.0 * X[3] - X[1] / 2.0 * X[11]) * dt + X[2];
-        S[3] = ((X[11] / 2.0 * X[5] + X[0] / 2.0 * X[13]) * X[9] + (X[0] / 2.0 * X[12] - X[11] / 2.0 * X[6]) * X[8] + (X[15] / 2.0 + X[10] / 2.0 * X[13]) * X[6] + (X[14] / 2.0 + X[10] / 2.0 * X[12]) * X[5] - X[0] / 2.0 * X[16]) * dt * dt + (X[6] / 2.0 * X[9] + X[5] / 2.0 * X[8] + X[11] / 2.0 * X[7] - X[13] / 2.0 * X[2] - X[1] / 2.0 * X[12] - X[0] / 2.0 * X[10]) * dt + X[3];
-        S[4] = ((-(X[12] / 2.0 * X[6])) + X[13] / 2.0 * X[5] - X[0] / 2.0 * X[11]) * dt + X[4];
-        S[5] = (X[11] / 2.0 * X[6] - X[13] / 2.0 * X[4] - X[0] / 2.0 * X[12]) * dt + X[5];
-        S[6] = ((-(X[11] / 2.0 * X[5])) + X[12] / 2.0 * X[4] - X[0] / 2.0 * X[13]) * dt + X[6];
-        S[7] = ((X[13] / 2.0 * X[4] - X[11] / 2.0 * X[6]) * X[9] + (X[12] / 2.0 * X[4] - X[11] / 2.0 * X[5]) * X[8] + ((-(X[14] / 2.0)) - X[10] / 2.0 * X[12]) * X[6] + (X[15] / 2.0 + X[10] / 2.0 * X[13]) * X[5] - X[16] / 2.0 * X[4]) * dt * dt + (X[5] / 2.0 * X[9] - X[6] / 2.0 * X[8] - X[10] / 2.0 * X[4] - X[11] / 2.0 * X[3] + X[12] / 2.0 * X[2] - X[1] / 2.0 * X[13]) * dt + X[7];
-        S[8] = (X[11] * X[9] + X[14] + X[10] * X[12]) * dt + X[8];
-        S[9] = ((-(X[11] * X[8])) + X[15] + X[10] * X[13]) * dt + X[9];
-        S[10] = ((-(X[13] * X[9])) - X[12] * X[8] + X[16]) * dt + X[10];
-        S[11] = X[11];
-        S[12] = X[12];
-        S[13] = X[13];
-        S[14] = X[14];
-        S[15] = X[15];
-        S[16] = X[16];
-        S[17] = X[17];
-        S[18] = X[18];
-        S[19] = X[19];
-        S[20] = X[20];
-        S[21] = X[21];
-        S[22] = X[22];
+        S[kMSC] = (X[13] / 2.0 * X[6] + X[12] / 2.0 * X[5] + X[11] / 2.0 * X[4]) * dt + X[0];
+        S[kM01] = ((X[13] / 2.0 * X[5] - X[0] / 2.0 * X[11]) * X[9] + (X[12] / 2.0 * X[5] + X[11] / 2.0 * X[4]) * X[8] - X[16] / 2.0 * X[5] + ((-(X[15] / 2.0)) - X[10] / 2.0 * X[13]) * X[4] - X[0] / 2.0 * X[14] - X[0] / 2.0 * X[10] * X[12]) * dt * dt + ((-(X[4] / 2.0 * X[9])) - X[0] / 2.0 * X[8] + X[13] / 2.0 * X[7] - X[10] / 2.0 * X[5] + X[12] / 2.0 * X[3] + X[11] / 2.0 * X[2]) * dt + X[1];
+        S[kM02] = ((X[13] / 2.0 * X[6] + X[11] / 2.0 * X[4]) * X[9] + (X[12] / 2.0 * X[6] + X[0] / 2.0 * X[11]) * X[8] - X[16] / 2.0 * X[6] + (X[14] / 2.0 + X[10] / 2.0 * X[12]) * X[4] - X[0] / 2.0 * X[15] - X[0] / 2.0 * X[10] * X[13]) * dt * dt + ((-(X[0] / 2.0 * X[9])) + X[4] / 2.0 * X[8] - X[12] / 2.0 * X[7] - X[10] / 2.0 * X[6] + X[13] / 2.0 * X[3] - X[1] / 2.0 * X[11]) * dt + X[2];
+        S[kM03] = ((X[11] / 2.0 * X[5] + X[0] / 2.0 * X[13]) * X[9] + (X[0] / 2.0 * X[12] - X[11] / 2.0 * X[6]) * X[8] + (X[15] / 2.0 + X[10] / 2.0 * X[13]) * X[6] + (X[14] / 2.0 + X[10] / 2.0 * X[12]) * X[5] - X[0] / 2.0 * X[16]) * dt * dt + (X[6] / 2.0 * X[9] + X[5] / 2.0 * X[8] + X[11] / 2.0 * X[7] - X[13] / 2.0 * X[2] - X[1] / 2.0 * X[12] - X[0] / 2.0 * X[10]) * dt + X[3];
+        S[kM12] = ((-(X[12] / 2.0 * X[6])) + X[13] / 2.0 * X[5] - X[0] / 2.0 * X[11]) * dt + X[4];
+        S[kM13] = (X[11] / 2.0 * X[6] - X[13] / 2.0 * X[4] - X[0] / 2.0 * X[12]) * dt + X[5];
+        S[kM23] = ((-(X[11] / 2.0 * X[5])) + X[12] / 2.0 * X[4] - X[0] / 2.0 * X[13]) * dt + X[6];
+        S[kM0123] = ((X[13] / 2.0 * X[4] - X[11] / 2.0 * X[6]) * X[9] + (X[12] / 2.0 * X[4] - X[11] / 2.0 * X[5]) * X[8] + ((-(X[14] / 2.0)) - X[10] / 2.0 * X[12]) * X[6] + (X[15] / 2.0 + X[10] / 2.0 * X[13]) * X[5] - X[16] / 2.0 * X[4]) * dt * dt + (X[5] / 2.0 * X[9] - X[6] / 2.0 * X[8] - X[10] / 2.0 * X[4] - X[11] / 2.0 * X[3] + X[12] / 2.0 * X[2] - X[1] / 2.0 * X[13]) * dt + X[7];
+        S[kR01] = (X[11] * X[9] + X[14] + X[10] * X[12]) * dt + X[8];
+        S[kR02] = ((-(X[11] * X[8])) + X[15] + X[10] * X[13]) * dt + X[9];
+        S[kR03] = ((-(X[13] * X[9])) - X[12] * X[8] + X[16]) * dt + X[10];
+        S[kR12] = X[kR12];
+        S[kR13] = X[kR13];
+        S[kR23] = X[kR23];
+        S[kA01] = X[kA01];
+        S[kA02] = X[kA02];
+        S[kA03] = X[kA03];
+        S[kBAX] = X[kBAX];
+        S[kBAY] = X[kBAY];
+        S[kBAZ] = X[kBAZ];
+        S[kBGX] = X[kBGX];
+        S[kBGY] = X[kBGY];
+        S[kBGZ] = X[kBGZ];
 
-        J.row(0) << 1, 0, 0, 0, 0.5*X[11]*dt, 0.5*X[12]*dt, 0.5*X[13]*dt, 0, 0, 0, 0, 0.5*X[4]*dt, 0.5*X[5]*dt, 0.5*X[6]*dt, 0, 0, 0, 0,0,0,0,0,0;
-        J.row(1) << -0.5*X[8]*dt + dt*dt*(-0.5*X[10]*X[12] - 0.5*X[11]*X[9] - 0.5*X[14]), 1, 0.5*X[11]*dt, 0.5*X[12]*dt, -0.5*X[9]*dt + dt*dt*(-0.5*X[10]*X[13] + 0.5*X[11]*X[8] - 0.5*X[15]), -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), 0, 0.5*X[13]*dt, -0.5*X[0]*dt + dt*dt*(0.5*X[11]*X[4] + 0.5*X[12]*X[5]), -0.5*X[4]*dt + dt*dt*(-0.5*X[0]*X[11] + 0.5*X[13]*X[5]), -0.5*X[5]*dt + dt*dt*(-0.5*X[0]*X[12] - 0.5*X[13]*X[4]), 0.5* X[2] *dt + dt*dt*(-0.5*X[0]*X[9] + 0.5*X[4]*X[8]), 0.5*X[3]*dt + dt*dt*(-0.5*X[0]*X[10] + 0.5*X[5]*X[8]), 0.5*X[7]*dt + dt*dt*(-0.5*X[10]*X[4] + 0.5*X[5]*X[9]), -0.5*X[0]*dt*dt, -0.5*X[4]*dt*dt, -0.5*X[5]*dt*dt, 0,0,0,0,0,0;        J.row(2) << -0.5*X[9]*dt + dt*dt*(-0.5*X[10]*X[13] + 0.5*X[11]*X[8] - 0.5*X[15]), -0.5*X[11]*dt, 1, 0.5*X[13]*dt, 0.5*X[8]*dt + dt*dt*(0.5*X[10]*X[12] + 0.5*X[11]*X[9] + 0.5*X[14]), 0, -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), -0.5*X[12]*dt, 0.5*X[4]*dt + dt*dt*(0.5*X[0]*X[11] + 0.5*X[12]*X[6]), -0.5*X[0]*dt + dt*dt*(0.5*X[11]*X[4] + 0.5*X[13]*X[6]), -0.5*X[6]*dt + dt*dt*(-0.5*X[0]*X[13] + 0.5*X[12]*X[4]), -0.5*X[1]*dt + dt*dt*(0.5*X[0]*X[8] + 0.5*X[4]*X[9]), -0.5*X[7]*dt + dt*dt*(0.5*X[10]*X[4] + 0.5*X[6]*X[8]), 0.5*X[3]*dt + dt*dt*(-0.5*X[0]*X[10] + 0.5*X[6]*X[9]), 0.5*X[4]*dt*dt, -0.5*X[0]*dt*dt, -0.5*X[6]*dt*dt, 0,0,0,0,0,0;
-        J.row(3) << -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), -0.5*X[12]*dt, -0.5*X[13]*dt, 1, 0, 0.5*X[8]*dt + dt*dt*(0.5*X[10]*X[12] + 0.5*X[11]*X[9] + 0.5*X[14]), 0.5*X[9]*dt + dt*dt*(0.5*X[10]*X[13] - 0.5*X[11]*X[8] + 0.5*X[15]), 0.5*X[11]*dt, 0.5*X[5]*dt + dt*dt*(0.5*X[0]*X[12] - 0.5*X[11]*X[6]), 0.5*X[6]*dt + dt*dt*(0.5*X[0]*X[13] + 0.5*X[11]*X[5]), -0.5*X[0]*dt + dt*dt*(0.5*X[12]*X[5] + 0.5*X[13]*X[6]), 0.5*X[7]*dt + dt*dt*(0.5*X[5]*X[9] - 0.5*X[6]*X[8]), -0.5*X[1]*dt + dt*dt*(0.5*X[0]*X[8] + 0.5*X[10]*X[5]), -0.5*X[2]*dt + dt*dt*(0.5*X[0]*X[9] + 0.5*X[10]*X[6]), 0.5*X[5]*dt*dt, 0.5*X[6]*dt*dt, -0.5*X[0]*dt*dt, 0,0,0,0,0,0;
-        J.row(4) << -0.5*X[11]*dt, 0, 0, 0, 1, 0.5*X[13]*dt, -0.5*X[12]*dt, 0, 0, 0, 0, -0.5*X[0]*dt, -0.5*X[6]*dt, 0.5*X[5]*dt, 0, 0, 0, 0,0,0,0,0,0;
-        J.row(5) << -0.5*X[12]*dt, 0, 0, 0, -0.5*X[13]*dt, 1, 0.5*X[11]*dt, 0, 0, 0, 0, 0.5*X[6]*dt, -0.5*X[0]*dt, -0.5*X[4]*dt, 0, 0, 0, 0,0,0,0,0,0;
-        J.row(6) << -0.5*X[13]*dt, 0, 0, 0, 0.5*X[12]*dt, -0.5*X[11]*dt, 1, 0, 0, 0, 0, -0.5*X[5]*dt, 0.5*X[4]*dt, -0.5*X[0]*dt, 0, 0, 0, 0,0,0,0,0,0;
-        J.row(7) << 0, -0.5*X[13]*dt, 0.5*X[12]*dt, -0.5*X[11]*dt, -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), 0.5*X[9]*dt + dt*dt*(0.5*X[10]*X[13] - 0.5*X[11]*X[8] + 0.5*X[15]), -0.5*X[8]*dt + dt*dt*(-0.5*X[10]*X[12] - 0.5*X[11]*X[9] - 0.5*X[14]), 1, -0.5*X[6]*dt + dt*dt*(-0.5*X[11]*X[5] + 0.5*X[12]*X[4]), 0.5*X[5]*dt + dt*dt*(-0.5*X[11]*X[6] + 0.5*X[13]*X[4]), -0.5*X[4]*dt + dt*dt*(-0.5*X[12]*X[6] + 0.5*X[13]*X[5]), -0.5*X[3]*dt + dt*dt*(-0.5*X[5]*X[8] - 0.5*X[6]*X[9]), 0.5*X[2]*dt + dt*dt*(-0.5*X[10]*X[6] + 0.5*X[4]*X[8]), -0.5*X[1]*dt + dt*dt*(0.5*X[10]*X[5] + 0.5*X[4]*X[9]), -0.5*X[6]*dt*dt, 0.5*X[5]*dt*dt, -0.5*X[4]*dt*dt, 0,0,0,0,0,0;
-        J.row(8) << 0, 0, 0, 0, 0, 0, 0, 0, 1, X[11]*dt, X[12]*dt, X[9]*dt, X[10]*dt, 0, dt, 0, 0, 0,0,0,0,0,0;
-        J.row(9) << 0, 0, 0, 0, 0, 0, 0, 0, -X[11]*dt, 1, X[13]*dt, -X[8]*dt, 0, X[10]*dt, 0, dt, 0, 0,0,0,0,0,0;
-        J.row(10) << 0, 0, 0, 0, 0, 0, 0, 0, -X[12]*dt, -X[13]*dt, 1, 0, -X[8]*dt, -X[9]*dt, 0, 0, dt, 0,0,0,0,0,0;
-        J.row(11) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,0,0,0,0,0;
-        J.row(12) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,0,0,0,0,0;
-        J.row(13) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,0,0,0,0,0;
-        J.row(14) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,0,0,0,0,0;
-        J.row(15) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,0,0,0,0,0;
-        J.row(16) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,0,0,0,0,0;
-        J.row(17) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,0,0,0,0,0;
-        J.row(18) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,1,0,0,0,0;
-        J.row(19) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,1,0,0,0;
-        J.row(20) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,1,0,0;
-        J.row(21) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,1,0;
-        J.row(22) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,0,1;
+        J.row(kMSC) << 1, 0, 0, 0, 0.5*X[11]*dt, 0.5*X[12]*dt, 0.5*X[13]*dt, 0, 0, 0, 0, 0.5*X[4]*dt, 0.5*X[5]*dt, 0.5*X[6]*dt, 0, 0, 0, 0,0,0,0,0,0;
+        J.row(kM01) << -0.5*X[8]*dt + dt*dt*(-0.5*X[10]*X[12] - 0.5*X[11]*X[9] - 0.5*X[14]), 1, 0.5*X[11]*dt, 0.5*X[12]*dt, -0.5*X[9]*dt + dt*dt*(-0.5*X[10]*X[13] + 0.5*X[11]*X[8] - 0.5*X[15]), -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), 0, 0.5*X[13]*dt, -0.5*X[0]*dt + dt*dt*(0.5*X[11]*X[4] + 0.5*X[12]*X[5]), -0.5*X[4]*dt + dt*dt*(-0.5*X[0]*X[11] + 0.5*X[13]*X[5]), -0.5*X[5]*dt + dt*dt*(-0.5*X[0]*X[12] - 0.5*X[13]*X[4]), 0.5* X[2] *dt + dt*dt*(-0.5*X[0]*X[9] + 0.5*X[4]*X[8]), 0.5*X[3]*dt + dt*dt*(-0.5*X[0]*X[10] + 0.5*X[5]*X[8]), 0.5*X[7]*dt + dt*dt*(-0.5*X[10]*X[4] + 0.5*X[5]*X[9]), -0.5*X[0]*dt*dt, -0.5*X[4]*dt*dt, -0.5*X[5]*dt*dt, 0,0,0,0,0,0;
+        J.row(kM02) << -0.5*X[9]*dt + dt*dt*(-0.5*X[10]*X[13] + 0.5*X[11]*X[8] - 0.5*X[15]), -0.5*X[11]*dt, 1, 0.5*X[13]*dt, 0.5*X[8]*dt + dt*dt*(0.5*X[10]*X[12] + 0.5*X[11]*X[9] + 0.5*X[14]), 0, -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), -0.5*X[12]*dt, 0.5*X[4]*dt + dt*dt*(0.5*X[0]*X[11] + 0.5*X[12]*X[6]), -0.5*X[0]*dt + dt*dt*(0.5*X[11]*X[4] + 0.5*X[13]*X[6]), -0.5*X[6]*dt + dt*dt*(-0.5*X[0]*X[13] + 0.5*X[12]*X[4]), -0.5*X[1]*dt + dt*dt*(0.5*X[0]*X[8] + 0.5*X[4]*X[9]), -0.5*X[7]*dt + dt*dt*(0.5*X[10]*X[4] + 0.5*X[6]*X[8]), 0.5*X[3]*dt + dt*dt*(-0.5*X[0]*X[10] + 0.5*X[6]*X[9]), 0.5*X[4]*dt*dt, -0.5*X[0]*dt*dt, -0.5*X[6]*dt*dt, 0,0,0,0,0,0;
+        J.row(kM03) << -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), -0.5*X[12]*dt, -0.5*X[13]*dt, 1, 0, 0.5*X[8]*dt + dt*dt*(0.5*X[10]*X[12] + 0.5*X[11]*X[9] + 0.5*X[14]), 0.5*X[9]*dt + dt*dt*(0.5*X[10]*X[13] - 0.5*X[11]*X[8] + 0.5*X[15]), 0.5*X[11]*dt, 0.5*X[5]*dt + dt*dt*(0.5*X[0]*X[12] - 0.5*X[11]*X[6]), 0.5*X[6]*dt + dt*dt*(0.5*X[0]*X[13] + 0.5*X[11]*X[5]), -0.5*X[0]*dt + dt*dt*(0.5*X[12]*X[5] + 0.5*X[13]*X[6]), 0.5*X[7]*dt + dt*dt*(0.5*X[5]*X[9] - 0.5*X[6]*X[8]), -0.5*X[1]*dt + dt*dt*(0.5*X[0]*X[8] + 0.5*X[10]*X[5]), -0.5*X[2]*dt + dt*dt*(0.5*X[0]*X[9] + 0.5*X[10]*X[6]), 0.5*X[5]*dt*dt, 0.5*X[6]*dt*dt, -0.5*X[0]*dt*dt, 0,0,0,0,0,0;
+        J.row(kM12) << -0.5*X[11]*dt, 0, 0, 0, 1, 0.5*X[13]*dt, -0.5*X[12]*dt, 0, 0, 0, 0, -0.5*X[0]*dt, -0.5*X[6]*dt, 0.5*X[5]*dt, 0, 0, 0, 0,0,0,0,0,0;
+        J.row(kM13) << -0.5*X[12]*dt, 0, 0, 0, -0.5*X[13]*dt, 1, 0.5*X[11]*dt, 0, 0, 0, 0, 0.5*X[6]*dt, -0.5*X[0]*dt, -0.5*X[4]*dt, 0, 0, 0, 0,0,0,0,0,0;
+        J.row(kM23) << -0.5*X[13]*dt, 0, 0, 0, 0.5*X[12]*dt, -0.5*X[11]*dt, 1, 0, 0, 0, 0, -0.5*X[5]*dt, 0.5*X[4]*dt, -0.5*X[0]*dt, 0, 0, 0, 0,0,0,0,0,0;
+        J.row(kM0123) << 0, -0.5*X[13]*dt, 0.5*X[12]*dt, -0.5*X[11]*dt, -0.5*X[10]*dt + dt*dt*(0.5*X[12]*X[8] + 0.5*X[13]*X[9] - 0.5*X[16]), 0.5*X[9]*dt + dt*dt*(0.5*X[10]*X[13] - 0.5*X[11]*X[8] + 0.5*X[15]), -0.5*X[8]*dt + dt*dt*(-0.5*X[10]*X[12] - 0.5*X[11]*X[9] - 0.5*X[14]), 1, -0.5*X[6]*dt + dt*dt*(-0.5*X[11]*X[5] + 0.5*X[12]*X[4]), 0.5*X[5]*dt + dt*dt*(-0.5*X[11]*X[6] + 0.5*X[13]*X[4]), -0.5*X[4]*dt + dt*dt*(-0.5*X[12]*X[6] + 0.5*X[13]*X[5]), -0.5*X[3]*dt + dt*dt*(-0.5*X[5]*X[8] - 0.5*X[6]*X[9]), 0.5*X[2]*dt + dt*dt*(-0.5*X[10]*X[6] + 0.5*X[4]*X[8]), -0.5*X[1]*dt + dt*dt*(0.5*X[10]*X[5] + 0.5*X[4]*X[9]), -0.5*X[6]*dt*dt, 0.5*X[5]*dt*dt, -0.5*X[4]*dt*dt, 0,0,0,0,0,0;
+        J.row(kR01) << 0, 0, 0, 0, 0, 0, 0, 0, 1, X[11]*dt, X[12]*dt, X[9]*dt, X[10]*dt, 0, dt, 0, 0, 0,0,0,0,0,0;
+        J.row(kR02) << 0, 0, 0, 0, 0, 0, 0, 0, -X[11]*dt, 1, X[13]*dt, -X[8]*dt, 0, X[10]*dt, 0, dt, 0, 0,0,0,0,0,0;
+        J.row(kR03) << 0, 0, 0, 0, 0, 0, 0, 0, -X[12]*dt, -X[13]*dt, 1, 0, -X[8]*dt, -X[9]*dt, 0, 0, dt, 0,0,0,0,0,0;
+        J.row(kR12) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,0,0,0,0,0;
+        J.row(kR13) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,0,0,0,0,0;
+        J.row(kR23) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,0,0,0,0,0;
+        J.row(kA01) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,0,0,0,0,0;
+        J.row(kA02) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,0,0,0,0,0;
+        J.row(kA03) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,0,0,0,0,0;
+        J.row(kBAX) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,0,0,0,0,0;
+        J.row(kBAY) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,1,0,0,0,0;
+        J.row(kBAZ) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,1,0,0,0;
+        J.row(kBGX) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,1,0,0;
+        J.row(kBGY) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,1,0;
+        J.row(kBGZ) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,0,1;
         // clang-format on
         return S;
     }

@@ -25,28 +25,27 @@ using namespace pga_ekf;
 //! @param tuple[1] - Input ENU values
 //! @param tuple[2] - Expected (output) state
 class PgaEKF_UpdateEnuTest
-    : public ::testing::TestWithParam<
-          std::tuple<std::array<double, PgaEKF::kStateSize>, PgaEKF::Enu, std::array<double, PgaEKF::kStateSize>>>
+    : public ::testing::TestWithParam<std::tuple<std::array<double, kStateSize>, PgaEKF::Enu, std::array<double, kStateSize>>>
 {
   public:
     constexpr static double kAccuracy = 1e-10;
 
-    constexpr static std::array<double, PgaEKF::kStateSize> kOriginIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, PgaEKF::kStateSize> kOriginExpected = kOriginIn;
+    constexpr static std::array<double, kStateSize> kOriginIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kOriginExpected = kOriginIn;
     constexpr static PgaEKF::Enu kOriginEnu = {0, 0, 0, 0, 0, 0};
     constexpr static PgaEKF::Enu k123Enu = {1, 2, 3, 0, 0, 0};
 
-    std::array<double, PgaEKF::kStateSize> _expectedState{};
+    std::array<double, kStateSize> _expectedState{};
     PgaEKF::Enu _inputEnu{};
     PgaEKF::StateVector _inputState;
 
     PgaEKF_UpdateEnuTest()
     {
-        std::array<double, PgaEKF::kStateSize> input{};
+        std::array<double, kStateSize> input{};
         std::tie(input, _inputEnu, _expectedState) = GetParam();
         // convert array<...> into actual State vector
-        for (std::size_t i = 0UL; i < PgaEKF::kStateSize; i++)
+        for (std::size_t i = 0UL; i < kStateSize; i++)
         {
             _inputState[i] = input[i];
         }
@@ -60,12 +59,12 @@ TEST_P(PgaEKF_UpdateEnuTest, ParametrizedTest)
     PgaEKF ekf(_inputState, uncertainty);
     ekf.updateEnu(_inputEnu);
 
-    for (std::size_t i = 0UL; i < PgaEKF::kStateSize; i++)
+    for (std::size_t i = 0UL; i < kStateSize; i++)
     {
         EXPECT_NEAR(ekf.state()[i], _expectedState[i], kAccuracy) << ", i=" << i;
     }
 
-    //    for (std::size_t i = 0UL; i < PgaEKF::kStateSize; i++)
+    //    for (std::size_t i = 0UL; i < kStateSize; i++)
     //    {
     //        EXPECT_NEAR(ekf.uncertainty().row(i)[i], kProcessNoise + kUncertainty, kUncertainty) << "i=" << i;
     //    }
