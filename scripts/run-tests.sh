@@ -6,8 +6,8 @@ set -e
 cd "${0%/*}/.."
 CURR_DIR=$(pwd)
 
-mkdir -p /tmp/tiny_pga_tests
-cd /tmp/tiny_pga_tests
+mkdir -p /tmp/pga_ekf_tests
+cd /tmp/pga_ekf_tests
 cmake -DCMAKE_BUILD_TYPE=Release $CURR_DIR
 make -j4
 ctest
