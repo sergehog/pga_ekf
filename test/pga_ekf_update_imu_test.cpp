@@ -30,8 +30,7 @@ class PgaEKF_UpdateImuTest
   public:
     constexpr static double kUncertainty = 1e-10;
 
-    constexpr static std::array<double, kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     constexpr static std::array<double, kStateSize> kStationaryExpected = kStationaryIn;
 
     constexpr static PgaEKF::Imu kStationaryImu = {0, 0, -pga_ekf::kGravity, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1};

@@ -30,8 +30,7 @@ class PgaEKF_UpdateEnuTest
   public:
     constexpr static double kAccuracy = 1e-10;
 
-    constexpr static std::array<double, kStateSize> kOriginIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kOriginIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     constexpr static std::array<double, kStateSize> kOriginExpected = kOriginIn;
     constexpr static PgaEKF::Enu kOriginEnu = {0, 0, 0, 0, 0, 0};
     constexpr static PgaEKF::Enu k123Enu = {1, 2, 3, 0, 0, 0};

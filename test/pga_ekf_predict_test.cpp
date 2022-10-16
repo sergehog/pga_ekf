@@ -33,40 +33,28 @@ class PgaEKF_PredictTest
     constexpr static double kTimeDelta = 0.1;
     constexpr static double kAccuracy = 1e-10;
 
-    constexpr static std::array<double, kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     constexpr static std::array<double, kStateSize> kStationaryExpected = kStationaryIn;
-    constexpr static std::array<double, kStateSize> kStationary2In = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0,
-                                                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kStationary2Expected = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0,
-                                                                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kXVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0,
-                                                                    0, 0, 0, 0, 0, 0, 0, 0, 0,         0, 0};
-    constexpr static std::array<double, kStateSize> kXVelocityExpected = {
-        1, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kYVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0,
-                                                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,         0};
-    constexpr static std::array<double, kStateSize> kYVelocityExpected = {
-        1, 0, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kZVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0,
-                                                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kZVelocityExpected = {
-        1, 0, 0, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kXAccelerationIn = {1, 0, 0,      0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                                        0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kXAccelerationExpected = {
-        1, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0,
-        0};
-    constexpr static std::array<double, kStateSize> kYAccelerationIn = {1, 0, 0, 0,      0, 0, 0, 0, 0, 0, 0, 0,
-                                                                        0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kYAccelerationExpected = {
-        1, 0, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0, 0, 0, 0, 0,
-        0, 0};
-    constexpr static std::array<double, kStateSize> kZAccelerationIn = {1, 0, 0, 0, 0,      0, 0, 0, 0, 0, 0, 0,
-                                                                        0, 0, 0, 0, kAccel, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kZAccelerationExpected = {
-        1, 0, 0, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0, 0, 0,
-        0, 0, 0};
+    constexpr static std::array<double, kStateSize> kStationary2In = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kStationary2Expected = {1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kXVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kXVelocityExpected =
+        {1, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kYVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kYVelocityExpected =
+        {1, 0, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kZVelocityIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kZVelocityExpected =
+        {1, 0, 0, -kVelocity* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kVelocity, 0, 0, 0, 0, 0, 0};
+    constexpr static std::array<double, kStateSize> kXAccelerationIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, kAccel, 0, 0};
+    constexpr static std::array<double, kStateSize> kXAccelerationExpected =
+        {1, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0, 0};
+    constexpr static std::array<double, kStateSize> kYAccelerationIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, kAccel, 0};
+    constexpr static std::array<double, kStateSize> kYAccelerationExpected =
+        {1, 0, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel, 0};
+    constexpr static std::array<double, kStateSize> kZAccelerationIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, kAccel};
+    constexpr static std::array<double, kStateSize> kZAccelerationExpected =
+        {1, 0, 0, -kAccel* kTimeDelta* kTimeDelta / 2, 0, 0, 0, 0, 0, 0, kAccel* kTimeDelta, 0, 0, 0, 0, 0, kAccel};
 
   public:
     std::array<double, kStateSize> _expectedState{};

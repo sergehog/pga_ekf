@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 find_package (Eigen3 3.3 REQUIRED)
 
 include_directories(include)
-
 enable_testing()
 add_executable(pga_ekf_test test/pga_ekf_test.cpp test/pga_ekf_update_imu_test.cpp test/pga_ekf_predict_test.cpp  test/pga_ekf_update_enu_test.cpp)
 add_test(pga_ekf_test pga_ekf_test)
