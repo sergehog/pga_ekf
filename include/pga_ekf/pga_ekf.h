@@ -197,11 +197,11 @@ class PgaEKF
         ImuUpdateJacobianMatrix H;
         auto h = ImuUpdateJacobian(_state, H);
 
-        std::cout << "Predicted: " << h.transpose() << std::endl;
-        std::cout << "Given: " << imu.vector().transpose() << std::endl;
+        // std::cout << "Predicted: " << h.transpose() << std::endl;
+        // std::cout << "Given: " << imu.vector().transpose() << std::endl;
         auto y = (imu.vector() - h).eval();  // Innovation
-        std::cout << "Innovation: " << y.transpose() << std::endl;
-        std::cout << "Jacobian: " << std::endl << H << std::endl;
+        // std::cout << "Innovation: " << y.transpose() << std::endl;
+        // std::cout << "Jacobian: " << std::endl << H << std::endl;
 
         auto S = H * _uncertainty * H.transpose() + R;                 // Innovation covariance
         auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
@@ -215,10 +215,10 @@ class PgaEKF
         EnuUncertainty R = enu.uncertainty();
         EnuUpdateJacobianMatrix H;
         auto h = EnuUpdateJacobian(_state, H);
-        std::cout << "Predicted: " << h.transpose() << std::endl;
-        std::cout << "Given: " << enu.vector().transpose() << std::endl;
+        // std::cout << "Predicted: " << h.transpose() << std::endl;
+        // std::cout << "Given: " << enu.vector().transpose() << std::endl;
         auto y = (enu.vector() - h).eval();  // Innovation
-        std::cout << "Innovation: " << y.transpose() << std::endl;
+        // std::cout << "Innovation: " << y.transpose() << std::endl;
         auto S = H * _uncertainty * H.transpose() + R;                 // Innovation covariance
         auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
         _state = _state + K * y;

@@ -8,7 +8,7 @@ CURR_DIR=$(pwd)
 
 mkdir -p /tmp/pga_ekf_tests
 cd /tmp/pga_ekf_tests
-cmake -DCMAKE_BUILD_TYPE=Release $CURR_DIR
+cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SAMPLES=OFF $CURR_DIR
 make -j4
 ctest
 

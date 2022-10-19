@@ -1,0 +1,3 @@
+[submodule "samples/openzen/openzen"]
+	path = samples/openzen/openzen
+	url = https://bitbucket.org/lpresearch/openzen.git
