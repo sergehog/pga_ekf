@@ -1,3 +1,5 @@
+![CI Status](https://github.com/sergehog/pga_ekf/actions/workflows/master.yml/badge.svg?branch=master)
+
 # pga_ekf : Extended Kalman Filter using PGA Motor algebra 
 
 **Plane-based** (aka **Projective**) **Geometric Algebra** (PGA) in 3D is powerful tool for solving various kinds of Comuter Geometry problems.
