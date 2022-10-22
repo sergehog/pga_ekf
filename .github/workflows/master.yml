@@ -1,4 +1,4 @@
-name: CMake Release build and test
+name: CI build and test
 
 on:
   push:
