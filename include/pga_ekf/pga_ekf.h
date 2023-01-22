@@ -29,7 +29,7 @@ namespace pga_ekf
 enum StateIndex : std::size_t
 {
     /// 8 components of the PGA Motor,
-    /// Encodes Body Frame Pose in some other global (ENU-like) coordinate frame
+    /// Encodes Body Frame Pose in some global (ENU-like) coordinate frame
     kMSC = 0,
     kMScalar = kMSC,
     kM01 = 1,
