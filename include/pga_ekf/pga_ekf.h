@@ -25,7 +25,7 @@ namespace pga_ekf
 {
 
 //! Named indexes of the State Vector
-//! Intentionally made as classical struct, so visibility is inside of the namespace
+//! Intentionally made as a enum, such that visibility is inside of the namespace
 enum StateIndex : std::size_t
 {
     /// 8 components of the PGA Motor,
@@ -69,9 +69,8 @@ constexpr double kGravity = 9.80665;
 class PgaEKF
 {
   public:
-    // static constexpr std::size_t kStateSize = 23;
     static constexpr std::size_t kImuSize = 6;
-    static constexpr std::size_t kEnuSize = 3;
+    static constexpr std::size_t kEnuSize = 4;
     using StateVector = Eigen::Matrix<double, kStateSize, 1>;
     using ImuVector = Eigen::Matrix<double, kImuSize, 1>;
     using EnuVector = Eigen::Matrix<double, kEnuSize, 1>;
@@ -113,14 +112,14 @@ class PgaEKF
         EnuVector vector() const
         {
             Eigen::Matrix<double, kEnuSize, 1> vec;
-            vec << x, y, z;
+            vec << x, y, z, 1;
             return vec;
         }
 
         EnuUncertainty uncertainty() const
         {
             Eigen::DiagonalMatrix<double, kEnuSize> uncertainty;
-            uncertainty.diagonal() << stdX, stdY, stdZ;
+            uncertainty.diagonal() << stdX, stdY, stdZ, 0.;
             return uncertainty.toDenseMatrix();
         }
     };
@@ -140,7 +139,7 @@ class PgaEKF
         _state[kM03] = -initEnu.z / 2;
 
         Eigen::DiagonalMatrix<double, kStateSize> uncertainty;
-        uncertainty.diagonal() << 1, initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        uncertainty.diagonal() << 1., initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
         _uncertainty = uncertainty.toDenseMatrix();
     }
 
@@ -302,16 +301,20 @@ class PgaEKF
     EnuVector EnuUpdateJacobian(const StateVector& X, EnuUpdateJacobianMatrix& J)
     {
         EnuVector H;
-        H[0] = 2.0 * X[4] * X[7] - 2.0 * X[2] * X[6] - 2.0 * X[1] * X[5] + 2.0 * X[0] * X[3];
-        H[1] = 2.0 * X[5] * X[7] - 2.0 * X[3] * X[6] + 2.0 * X[1] * X[4] - 2.0 * X[0] * X[2];
-        H[2] = 2.0 * X[6] * X[7] + 2.0 * X[3] * X[5] + 2.0 * X[2] * X[4] + 2.0 * X[0] * X[1];
 
-        J.row(0) << 2.0 * X[3], -2.0 * X[5], -2.0 * X[6], 2.0 * X[0], 2.0 * X[7], -2.0 * X[1], -2.0 * X[2], 2.0 * X[4], 0, 0, 0,
-            0, 0, 0, 0, 0, 0;
+        H[0] = -2.0 * X[6] * X[7] - 2.0 * X[3] * X[5] - 2.0 * X[2] * X[4] - 2.0 * X[0] * X[1];
+        H[1] = 2.0 * X[5] * X[7] - 2.0 * X[3] * X[6] + 2.0 * X[1] * X[4] - 2.0 * X[0] * X[2];
+        H[2] = -2.0 * X[4] * X[7] + 2.0 * X[2] * X[6] + 2.0 * X[1] * X[5] - 2.0 * X[0] * X[3];
+        H[3] = X[6] * X[6] + X[5] * X[5] + X[4] * X[4] + X[0] * X[0]; // e1 ^ (e2 ^ e3)
+
+        J.row(0) << -2.0 * X[1], -2.0 * X[0], -2.0 * X[4], -2.0 * X[5], -2.0 * X[2], -2.0 * X[3], -2.0 * X[7], -2.0 * X[6], 0, 0, 0, 0, 0,
+            0, 0, 0, 0;
         J.row(1) << -2.0 * X[2], 2.0 * X[4], -2.0 * X[0], -2.0 * X[6], 2.0 * X[1], 2.0 * X[7], -2.0 * X[3], 2.0 * X[5], 0, 0, 0,
             0, 0, 0, 0, 0, 0;
-        J.row(2) << 2.0 * X[1], 2.0 * X[0], 2.0 * X[4], 2.0 * X[5], 2.0 * X[2], 2.0 * X[3], 2.0 * X[7], 2.0 * X[6], 0, 0, 0, 0, 0,
-            0, 0, 0, 0;
+        J.row(2) << -2.0 * X[3], 2.0 * X[5], 2.0 * X[6], -2.0 * X[0], -2.0 * X[7], 2.0 * X[1], 2.0 * X[2], -2.0 * X[4], 0, 0, 0,
+            0, 0, 0, 0, 0, 0;
+        J.row(3) << 2*X[0], 0, 0, 0, 2*X[4], 2*X[5], 2*X[6], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+
         return H;
     }
 };

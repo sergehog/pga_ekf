@@ -91,10 +91,11 @@ TEST_P(PgaEKF_PredictTest, ParametrizedTest)
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     InstantiationName,
     PgaEKF_PredictTest,
-    testing::Values(std::make_tuple(PgaEKF_PredictTest::kStationaryIn, PgaEKF_PredictTest::kStationaryExpected),
+    testing::Values(
+                    std::make_tuple(PgaEKF_PredictTest::kStationaryIn, PgaEKF_PredictTest::kStationaryExpected),
                     std::make_tuple(PgaEKF_PredictTest::kStationary2In, PgaEKF_PredictTest::kStationary2Expected),
                     std::make_tuple(PgaEKF_PredictTest::kXVelocityIn, PgaEKF_PredictTest::kXVelocityExpected),
                     std::make_tuple(PgaEKF_PredictTest::kYVelocityIn, PgaEKF_PredictTest::kYVelocityExpected),

@@ -71,7 +71,7 @@ TEST_P(PgaEKF_UpdateImuTest, ParametrizedTest)
     //    }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     InstantiationName,
     PgaEKF_UpdateImuTest,
     testing::Values(std::make_tuple(PgaEKF_UpdateImuTest::kStationaryIn,
@@ -79,7 +79,7 @@ INSTANTIATE_TEST_CASE_P(
                                     PgaEKF_UpdateImuTest::kStationaryExpected)
                     //,
                     //! TODO: this test instance suppose to fail, actually (o_O)
-                    //                                        std::make_tuple(PgaEKF_UpdateImuTest::kOriginIn,
+                    //                                        std::make_tuple(PgaEKF_UpdateImuTest::kStateOrigin,
                     //                                                        PgaEKF_UpdateImuTest::kUpsideDownImu,
                     //                                                        PgaEKF_UpdateImuTest::kOriginExpected)
                     ));
