@@ -35,3 +35,5 @@ venv/
 *.exe
 *.out
 *.app
+
+script.*
