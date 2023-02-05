@@ -294,17 +294,14 @@ class PgaEKF
         H[3] = X[11];
         H[4] = X[12];
         H[5] = X[13];
-
-        J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity, -2.0 * X[4] * kGravity, 0, 0,
-            0, 0, 0, 0, 0, 1, 0, 0;
-        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity, 2.0 * X[0] * kGravity, 0, 0, 0,
-            0, 0, 0, 0, 0, 1, 0;
-        J.row(2) << -2 * X[0] * kGravity, 0, 0, 0, -2 * X[4] * kGravity, 2 * X[5] * kGravity, 2 * X[6] * kGravity, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 1;
+        // clang-format off
+        J.row(0) << 2.0 * X[5] * kGravity, 0, 0, 0, -2.0 * X[6] * kGravity, 2.0 * X[0] * kGravity, -2.0 * X[4] * kGravity, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0;
+        J.row(1) << 2.0 * X[6] * kGravity, 0, 0, 0, 2.0 * X[5] * kGravity, 2.0 * X[4] * kGravity, 2.0 * X[0] * kGravity, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0;
+        J.row(2) << -2 * X[0] * kGravity, 0, 0, 0, -2 * X[4] * kGravity, 2 * X[5] * kGravity, 2 * X[6] * kGravity, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
         J.row(3) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0;
         J.row(4) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0;
         J.row(5) << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0;
-
+        // clang-format on
         return H;
     }
 

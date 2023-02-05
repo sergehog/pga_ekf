@@ -23,8 +23,7 @@ using namespace pga_ekf;
 //! Tests PgaEKF.predict(..) function
 //! @param tuple[0] - Initial (input) state
 //! @param tuple[1] - Expected (output) state
-class PgaEKF_PredictTest
-    : public ::testing::TestWithParam<std::tuple<std::array<double, kStateSize>, std::array<double, kStateSize>>>
+class PgaEKF_PredictTest : public ::testing::TestWithParam<std::tuple<std::array<double, kStateSize>, std::array<double, kStateSize>>>
 {
   public:
     constexpr static double kProcessNoiseStd = 0.1;
