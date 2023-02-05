@@ -20,30 +20,31 @@
 #include <array>
 using namespace pga_ekf;
 
+//! PgaEKF::StateVector based on Eigen::Matrix is not convenient to use in parametrized unit-tests,
+//! so here we define more convenient array-based type
+using StateVectorArray = std::array<double, kStateSize>;
+
 //! Tests PgaEKF.updateImu(..) function
 //! @param tuple[0] - Initial (input) state
 //! @param tuple[1] - Input IMU values
 //! @param tuple[2] - Expected (output) state
-class PgaEKF_UpdateImuTest
-    : public ::testing::TestWithParam<std::tuple<std::array<double, kStateSize>, PgaEKF::Imu, std::array<double, kStateSize>>>
+class PgaEKF_UpdateImuTest : public ::testing::TestWithParam<std::tuple<StateVectorArray, PgaEKF::Imu, StateVectorArray>>
 {
   public:
-    constexpr static double kUncertainty = 1e-10;
+    constexpr static double kInitialVariance = 0.01;
 
-    constexpr static std::array<double, kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    constexpr static std::array<double, kStateSize> kStationaryExpected = kStationaryIn;
+    constexpr static StateVectorArray kStateOrigin = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    constexpr static PgaEKF::Imu kStationaryImu = {0, 0, -pga_ekf::kGravity, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1};
-    constexpr static PgaEKF::Imu kUpsideDownImu = {0, 0, pga_ekf::kGravity, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1};
+    constexpr static PgaEKF::Imu kStationaryImu = {0, 0, -pga_ekf::kGravity, 0, 0, 0};
+    constexpr static PgaEKF::Imu kUpsideDownImu = {0, 0, pga_ekf::kGravity, 0, 0, 0};
 
-    //!
-    std::array<double, kStateSize> _expectedState{};
+    StateVectorArray _expectedState{};
     PgaEKF::Imu _inputImu{};
     PgaEKF::StateVector _inputState;
 
     PgaEKF_UpdateImuTest()
     {
-        std::array<double, kStateSize> input{};
+        StateVectorArray input{};
         std::tie(input, _inputImu, _expectedState) = GetParam();
         // convert array<...> into actual State vector
         for (std::size_t i = 0UL; i < kStateSize; i++)
@@ -51,38 +52,48 @@ class PgaEKF_UpdateImuTest
             _inputState[i] = input[i];
         }
     }
+
+    static void setImuStd(PgaEKF::Imu& imu, const double stdValue = 0.0)
+    {
+        imu.stdAx = stdValue;
+        imu.stdAy = stdValue;
+        imu.stdAz = stdValue;
+        imu.stdGx = stdValue;
+        imu.stdGy = stdValue;
+        imu.stdGz = stdValue;
+    }
 };
 
-TEST_P(PgaEKF_UpdateImuTest, ParametrizedTest)
+//! Zero observation uncertainty -> State change as expected
+TEST_P(PgaEKF_UpdateImuTest, PerfectObservationsTest)
 {
-    PgaEKF::UncertaintyMatrix uncertainty = PgaEKF::UncertaintyMatrix::Identity() * kUncertainty;
+    PgaEKF::UncertaintyMatrix uncertainty = PgaEKF::UncertaintyMatrix::Identity() * kInitialVariance;
 
     PgaEKF ekf(_inputState, uncertainty);
+
+    setImuStd(_inputImu, 1e-10);  // std=0 => perfect observations
+
     ekf.updateImu(_inputImu);
 
     for (std::size_t i = 0UL; i < kStateSize; i++)
     {
-        EXPECT_NEAR(ekf.state()[i], _expectedState[i], kUncertainty) << ", i=" << i;
+        EXPECT_NEAR(ekf.state()[i], _expectedState[i], 1e-10) << ", i=" << i;
     }
 
     //    for (std::size_t i = 0UL; i < kStateSize; i++)
     //    {
-    //        EXPECT_NEAR(ekf.uncertainty().row(i)[i], kProcessNoise + kUncertainty, kUncertainty) << "i=" << i;
+    //        EXPECT_NEAR(ekf.uncertainty().row(i)[i], kUncertainty, kUncertainty) << "i=" << i;
     //    }
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    InstantiationName,
-    PgaEKF_UpdateImuTest,
-    testing::Values(std::make_tuple(PgaEKF_UpdateImuTest::kStationaryIn,
-                                    PgaEKF_UpdateImuTest::kStationaryImu,
-                                    PgaEKF_UpdateImuTest::kStationaryExpected)
-                    //,
-                    //! TODO: this test instance suppose to fail, actually (o_O)
-                    //                                        std::make_tuple(PgaEKF_UpdateImuTest::kStateOrigin,
-                    //                                                        PgaEKF_UpdateImuTest::kUpsideDownImu,
-                    //                                                        PgaEKF_UpdateImuTest::kOriginExpected)
-                    ));
+INSTANTIATE_TEST_SUITE_P(InstantiationName,
+                         PgaEKF_UpdateImuTest,
+                         testing::Values(std::make_tuple(PgaEKF_UpdateImuTest::kStateOrigin,
+                                                         PgaEKF_UpdateImuTest::kStationaryImu,
+                                                         PgaEKF_UpdateImuTest::kStateOrigin)
+                                         // std::make_tuple(PgaEKF_UpdateImuTest::kStateOrigin,
+                                         // PgaEKF_UpdateImuTest::kUpsideDownImu, PgaEKF_UpdateImuTest::kStateOrigin)
+                                         ));
 
 TEST(PgaEKF_UpdateTest, AccPositiveXTest)
 {

@@ -30,9 +30,8 @@ using StateVectorArray = std::array<double, kStateSize>;
 
 class PgaEKF_UpdateEnuTest : public ::testing::TestWithParam<std::tuple<PgaEKF::Enu, PgaEKF::Enu>>
 {
-
   public:
-    constexpr static double kHighAccuracy = 1e-10;
+    constexpr static double kHighAccuracy = 0.001;
     constexpr static double kMediumAccuracy = 0.1;
     constexpr static double kBadAccuracy = 3.;
 
@@ -62,11 +61,13 @@ TEST_P(PgaEKF_UpdateEnuTest, PerfectObservationsTest)
     setEnuStd(_initializationEnu, kBadAccuracy);
 
     PgaEKF ekf(_initializationEnu);
+    EXPECT_EQ(ekf.motorNorm(), 1.0);
 
     // Observation uncertainty is zero
     setEnuStd(_inputAndExpectedEnu, kHighAccuracy);
 
     ekf.updateEnu(_inputAndExpectedEnu);
+    EXPECT_NEAR(ekf.motorNorm(), 1.0, 1e-10);
 
     auto outEnu = ekf.filteredPosition();
     EXPECT_NEAR(outEnu.x, _inputAndExpectedEnu.x, kHighAccuracy);
@@ -74,23 +75,19 @@ TEST_P(PgaEKF_UpdateEnuTest, PerfectObservationsTest)
     EXPECT_NEAR(outEnu.z, _inputAndExpectedEnu.z, kHighAccuracy);
 
     // TEST: (0.0 <= uncertainty <= kHighAccuracy)
-    EXPECT_LT(0.0, outEnu.stdX);
-    EXPECT_LT(outEnu.stdX, kBadAccuracy);
-    // EXPECT_LE(outEnu.stdX, 2*kHighAccuracy);
+    EXPECT_LE(0.0, outEnu.stdX);
+    EXPECT_LE(outEnu.stdX, kHighAccuracy);
 
-    EXPECT_LT(0.0, outEnu.stdY);
-    EXPECT_LT(outEnu.stdY, kBadAccuracy);
-    // EXPECT_LE(outEnu.stdY, 2*kHighAccuracy);
+    EXPECT_LE(0.0, outEnu.stdY);
+    EXPECT_LE(outEnu.stdY, kHighAccuracy);
 
-    EXPECT_LT(0.0, outEnu.stdZ);
-    EXPECT_LT(outEnu.stdZ, kBadAccuracy);
-    // EXPECT_LE(outEnu.stdZ, 2*kHighAccuracy);
+    EXPECT_LE(0.0, outEnu.stdZ);
+    EXPECT_LE(outEnu.stdZ, kHighAccuracy);
 }
 
 //! Observations have some inaccuracy -> State will be "weighted average" between estimated and observed
 TEST_P(PgaEKF_UpdateEnuTest, UncertainObservationsTest)
 {
-
     setEnuStd(_initializationEnu, kBadAccuracy);
     PgaEKF ekf(_initializationEnu);
 
@@ -144,24 +141,54 @@ TEST_P(PgaEKF_UpdateEnuTest, UncertainObservationsTest)
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(Start_From_Origin,
-                         PgaEKF_UpdateEnuTest,
-                         testing::Values(  // ToDo: rewrite with testinig::Combine(..)
-                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kOriginEnu),
-                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::k123Enu),
-                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kX1Enu),
-                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kY2Enu),
-                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kZ3Enu)));
+const auto kAllEnuValues = testing::Values(PgaEKF_UpdateEnuTest::kOriginEnu,
+                                           PgaEKF_UpdateEnuTest::k123Enu,
+                                           PgaEKF_UpdateEnuTest::kX1Enu,
+                                           PgaEKF_UpdateEnuTest::kY2Enu,
+                                           PgaEKF_UpdateEnuTest::kZ3Enu);
 
-INSTANTIATE_TEST_SUITE_P(
-    Start_From_123,
-    PgaEKF_UpdateEnuTest,
-    testing::Values(  // ToDo: rewrite with testinig::Combine(..)
-        std::make_tuple(PgaEKF_UpdateEnuTest::k123Enu, PgaEKF_UpdateEnuTest::kOriginEnu),
-        std::make_tuple(PgaEKF_UpdateEnuTest::k123Enu, PgaEKF_UpdateEnuTest::k123Enu),
-        std::make_tuple(PgaEKF_UpdateEnuTest::kX1Enu, PgaEKF_UpdateEnuTest::kOriginEnu),
-        std::make_tuple(PgaEKF_UpdateEnuTest::kY2Enu, PgaEKF_UpdateEnuTest::kOriginEnu),
-        std::make_tuple(PgaEKF_UpdateEnuTest::kZ3Enu, PgaEKF_UpdateEnuTest::kOriginEnu)
-        // std::make_tuple(PgaEKF_UpdateEnuTest::kState123, PgaEKF_UpdateEnuTest::kX1Enu, PgaEKF_UpdateEnuTest::kStateX1)
+INSTANTIATE_TEST_SUITE_P(Combined_Test, PgaEKF_UpdateEnuTest, testing::Combine(kAllEnuValues, kAllEnuValues));
 
-        ));
+// INSTANTIATE_TEST_SUITE_P(Easy_Motion,
+//                         PgaEKF_UpdateEnuTest,
+//                         testing::Values(
+//                             // Staying in the same place
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kOriginEnu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::k123Enu, PgaEKF_UpdateEnuTest::k123Enu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kX1Enu, PgaEKF_UpdateEnuTest::kX1Enu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kY2Enu, PgaEKF_UpdateEnuTest::kY2Enu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kZ3Enu, PgaEKF_UpdateEnuTest::kZ3Enu),
+//
+//                             //Starting From Origin
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::k123Enu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kX1Enu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kY2Enu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kOriginEnu, PgaEKF_UpdateEnuTest::kZ3Enu),
+//
+//                             // Going to Origin,
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::k123Enu, PgaEKF_UpdateEnuTest::kOriginEnu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kX1Enu, PgaEKF_UpdateEnuTest::kOriginEnu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kY2Enu, PgaEKF_UpdateEnuTest::kOriginEnu),
+//                             std::make_tuple(PgaEKF_UpdateEnuTest::kZ3Enu, PgaEKF_UpdateEnuTest::kOriginEnu)
+//                                 ));
+//
+// INSTANTIATE_TEST_SUITE_P(
+//    Random_Motion,
+//    PgaEKF_UpdateEnuTest,
+//    testing::Values(
+//        std::make_tuple(PgaEKF_UpdateEnuTest::k123Enu, PgaEKF_UpdateEnuTest::kX1Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::k123Enu, PgaEKF_UpdateEnuTest::kY2Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::k123Enu, PgaEKF_UpdateEnuTest::kZ3Enu),
+//
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kX1Enu, PgaEKF_UpdateEnuTest::k123Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kX1Enu, PgaEKF_UpdateEnuTest::kY2Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kX1Enu, PgaEKF_UpdateEnuTest::kZ3Enu),
+//
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kY2Enu, PgaEKF_UpdateEnuTest::k123Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kY2Enu, PgaEKF_UpdateEnuTest::kX1Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kY2Enu, PgaEKF_UpdateEnuTest::kZ3Enu),
+//
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kZ3Enu, PgaEKF_UpdateEnuTest::k123Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kZ3Enu, PgaEKF_UpdateEnuTest::kX1Enu),
+//        std::make_tuple(PgaEKF_UpdateEnuTest::kZ3Enu, PgaEKF_UpdateEnuTest::kY2Enu)
+//        ));

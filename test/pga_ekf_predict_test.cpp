@@ -27,11 +27,12 @@ class PgaEKF_PredictTest
     : public ::testing::TestWithParam<std::tuple<std::array<double, kStateSize>, std::array<double, kStateSize>>>
 {
   public:
-    constexpr static double kProcessNoise = 0.1;
-    constexpr static double kVelocity = 1;
-    constexpr static double kAccel = 1;
+    constexpr static double kProcessNoiseStd = 0.1;
+    constexpr static double kProcessNoiseVariance = kProcessNoiseStd * kProcessNoiseStd;
+    constexpr static double kVelocity = 1.11;
+    constexpr static double kAccel = 0.999;
     constexpr static double kTimeDelta = 0.1;
-    constexpr static double kAccuracy = 1e-10;
+    constexpr static double kInitialUncertanty = 1e-10;
 
     constexpr static std::array<double, kStateSize> kStationaryIn = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     constexpr static std::array<double, kStateSize> kStationaryExpected = kStationaryIn;
@@ -75,27 +76,27 @@ class PgaEKF_PredictTest
 
 TEST_P(PgaEKF_PredictTest, ParametrizedTest)
 {
-    PgaEKF::UncertaintyMatrix uncertainty = PgaEKF::UncertaintyMatrix::Identity() * kAccuracy;
+    PgaEKF::UncertaintyMatrix uncertainty = PgaEKF::UncertaintyMatrix::Identity() * kInitialUncertanty;
 
     PgaEKF ekf(_inputState, uncertainty);
-    ekf.predict(kTimeDelta, kProcessNoise);
+
+    ekf.predict(kTimeDelta, kProcessNoiseStd);
 
     for (std::size_t i = 0UL; i < kStateSize; i++)
     {
-        EXPECT_NEAR(ekf.state()[i], _expectedState[i], kAccuracy) << ", i=" << i;
+        EXPECT_NEAR(ekf.state()[i], _expectedState[i], kInitialUncertanty) << ", i=" << i;
     }
 
     for (std::size_t i = 0UL; i < kStateSize; i++)
     {
-        EXPECT_NEAR(ekf.uncertainty().row(i)[i], kProcessNoise + kAccuracy, kAccuracy) << "i=" << i;
+        EXPECT_NEAR(ekf.uncertainty().row(i)[i], kProcessNoiseVariance + kInitialUncertanty, 1e-10) << "i=" << i;
     }
 }
 
 INSTANTIATE_TEST_SUITE_P(
     InstantiationName,
     PgaEKF_PredictTest,
-    testing::Values(
-                    std::make_tuple(PgaEKF_PredictTest::kStationaryIn, PgaEKF_PredictTest::kStationaryExpected),
+    testing::Values(std::make_tuple(PgaEKF_PredictTest::kStationaryIn, PgaEKF_PredictTest::kStationaryExpected),
                     std::make_tuple(PgaEKF_PredictTest::kStationary2In, PgaEKF_PredictTest::kStationary2Expected),
                     std::make_tuple(PgaEKF_PredictTest::kXVelocityIn, PgaEKF_PredictTest::kXVelocityExpected),
                     std::make_tuple(PgaEKF_PredictTest::kYVelocityIn, PgaEKF_PredictTest::kYVelocityExpected),

@@ -20,6 +20,7 @@
 
 #include <Eigen/Dense>
 #include <iostream>
+#include <utility>
 
 namespace pga_ekf
 {
@@ -31,7 +32,6 @@ enum StateIndex : std::size_t
     /// 8 components of the PGA Motor,
     /// Encodes Body Frame Pose in some global (ENU-like) coordinate frame
     kMSC = 0,
-    kMScalar = kMSC,
     kM01 = 1,
     kM02 = 2,
     kM03 = 3,
@@ -40,7 +40,7 @@ enum StateIndex : std::size_t
     kM23 = 6,
     kM0123 = 7,
 
-    /// 6 components of the Rate bivector
+    /// 6 components of the Rate Bivector
     /// Encodes Velocity (including Angular) in body frame
     kR01 = 8,
     kR02 = 9,
@@ -49,7 +49,7 @@ enum StateIndex : std::size_t
     kR13 = 12,
     kR23 = 13,
 
-    /// 3 components of Acceleration bivector
+    /// 3 components of Acceleration Bivector
     /// if body is stationary, acceleration is zero
     kA01 = 14,
     kA02 = 15,
@@ -70,7 +70,7 @@ class PgaEKF
 {
   public:
     static constexpr std::size_t kImuSize = 6;
-    static constexpr std::size_t kEnuSize = 4;
+    static constexpr std::size_t kEnuSize = 3;
     using StateVector = Eigen::Matrix<double, kStateSize, 1>;
     using ImuVector = Eigen::Matrix<double, kImuSize, 1>;
     using EnuVector = Eigen::Matrix<double, kEnuSize, 1>;
@@ -88,17 +88,18 @@ class PgaEKF
         double stdAx, stdAy, stdAz;  //!> standard deviation of accelerometer values
         double stdGx, stdGy, stdGz;  //!> standard deviation of gyroscope values
 
-        ImuVector vector() const
+        [[nodiscard]] ImuVector vector() const
         {
             Eigen::Matrix<double, kImuSize, 1> vec;
             vec << ax, ay, az, gx, gy, gz;
             return vec;
         }
 
-        ImuUncertainty uncertainty() const
+        [[nodiscard]] ImuUncertainty uncertainty() const
         {
             Eigen::DiagonalMatrix<double, kImuSize> uncertainty;
-            uncertainty.diagonal() << stdAx, stdAy, stdAz, stdGx, stdGy, stdGz;
+            // convert Standard Deviation into Variance
+            uncertainty.diagonal() << stdAx * stdAx, stdAy * stdAy, stdAz * stdAz, stdGx * stdGx, stdGy * stdGy, stdGz * stdGz;
             return uncertainty.toDenseMatrix();
         }
     };
@@ -109,17 +110,19 @@ class PgaEKF
     {
         double x, y, z;           //!> Global Position values
         double stdX, stdY, stdZ;  //!> standard deviation of values
-        EnuVector vector() const
+        [[nodiscard]] EnuVector vector() const
         {
             Eigen::Matrix<double, kEnuSize, 1> vec;
-            vec << x, y, z, 1;
+            vec << x, y, z;
             return vec;
         }
 
-        EnuUncertainty uncertainty() const
+        [[nodiscard]] EnuUncertainty uncertainty() const
         {
             Eigen::DiagonalMatrix<double, kEnuSize> uncertainty;
-            uncertainty.diagonal() << stdX, stdY, stdZ, 0.;
+            // convert Standard Deviation  into Variance
+            uncertainty.diagonal() << stdX * stdX, stdY * stdY, stdZ * stdZ;
+
             return uncertainty.toDenseMatrix();
         }
     };
@@ -131,46 +134,56 @@ class PgaEKF
     };
 
     //! Initialization with zero speed and acceleration, but at known ENU coordinate
-    PgaEKF(const Enu initEnu) : _state(StateVector::Zero()), _uncertainty(UncertaintyMatrix::Identity())
+    explicit PgaEKF(const Enu stationaryEnu) : _state(StateVector::Zero()), _uncertainty(UncertaintyMatrix::Identity())
     {
         _state[kMSC] = 1;
-        _state[kM01] = -initEnu.x / 2;
-        _state[kM02] = -initEnu.y / 2;
-        _state[kM03] = -initEnu.z / 2;
+        _state[kM01] = -stationaryEnu.x / 2;
+        _state[kM02] = -stationaryEnu.y / 2;
+        _state[kM03] = -stationaryEnu.z / 2;
 
         Eigen::DiagonalMatrix<double, kStateSize> uncertainty;
-        uncertainty.diagonal() << 1., initEnu.stdX / 2, initEnu.stdY / 2, initEnu.stdZ / 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        // variance is quadrupled because values are halved
+        const double varX = stationaryEnu.stdX * stationaryEnu.stdX / 4;
+        const double varY = stationaryEnu.stdY * stationaryEnu.stdY / 4;
+        const double varZ = stationaryEnu.stdZ * stationaryEnu.stdZ / 4;
+        uncertainty.diagonal() << 1., varX, varY, varZ, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
         _uncertainty = uncertainty.toDenseMatrix();
     }
 
-    //! Initialization with underlying state and uncertainty
-    PgaEKF(const StateVector& initState, const UncertaintyMatrix& initUncertainty)
-        : _state(initState), _uncertainty(initUncertainty)
+    //! Initialization with underlying state and uncertainty covariance matrix
+    PgaEKF(StateVector initState, UncertaintyMatrix initUncertainty)
+        : _state(std::move(initState)), _uncertainty(std::move(initUncertainty))
     {
     }
 
-    //! @returns current state vector
-    StateVector state() const { return _state; }
+    //! Initialization with underlying state and uncertainty variance value
+    PgaEKF(StateVector initState, double initUncertainty) : _state(std::move(initState))
+    {
+        _uncertainty = PgaEKF::UncertaintyMatrix::Identity() * initUncertainty;
+    }
 
-    //! @returns current uncertainty matrix
-    UncertaintyMatrix uncertainty() const { return _uncertainty; }
+    //! @returns current State Vector
+    [[nodiscard]] StateVector state() const { return _state; }
+
+    //! @returns current Uncertainty Convariance matrix
+    [[nodiscard]] UncertaintyMatrix uncertainty() const { return _uncertainty; }
 
     //! @returns current Position in ENU space
-    Enu filteredPosition() const
+    [[nodiscard]] Enu filteredPosition() const
     {
         Enu enu{};
         enu.x = -_state[1] * 2;
         enu.y = -_state[2] * 2;
         enu.z = -_state[3] * 2;
-
-        enu.stdX = _uncertainty.row(1)[1] * 2;
-        enu.stdY = _uncertainty.row(2)[2] * 2;
-        enu.stdZ = _uncertainty.row(3)[3] * 2;
+        // std is also doubled
+        enu.stdX = std::sqrt(_uncertainty.row(1)[1]) * 2;
+        enu.stdY = std::sqrt(_uncertainty.row(2)[2]) * 2;
+        enu.stdZ = std::sqrt(_uncertainty.row(3)[3]) * 2;
         return enu;
     }
 
     //! @returns current Orientation in ENU space
-    Orientation filteredOrientation() const
+    [[nodiscard]] Orientation filteredOrientation() const
     {
         Orientation o{
             Eigen::Quaterniond(_state[0], -_state[6], -_state[5], -_state[4]),
@@ -181,9 +194,10 @@ class PgaEKF
     //! Predicts current Kalman state and uncertainty into future
     //! @param dt - time delta for future state, must be > 0
     //! @param processNoise - noise/uncertainty of prediction
-    void predict(const double dt, const double processNoise = .01)
+    void predict(const double dt, const double processNoiseStd = .01)
     {
-        const ProcessNoiseMatrix Q = processNoise * ProcessNoiseMatrix::Identity();
+        const auto noiseVariance = processNoiseStd * processNoiseStd;
+        const ProcessNoiseMatrix Q = noiseVariance * ProcessNoiseMatrix::Identity();
         PredictJacobianMatrix F;
         _state = predictJacobian(dt, _state, F);
         _uncertainty = F * _uncertainty * F.transpose() + Q;
@@ -195,13 +209,7 @@ class PgaEKF
         ImuUncertainty R = imu.uncertainty();
         ImuUpdateJacobianMatrix H;
         auto h = ImuUpdateJacobian(_state, H);
-
-        // std::cout << "Predicted: " << h.transpose() << std::endl;
-        // std::cout << "Given: " << imu.vector().transpose() << std::endl;
-        auto y = (imu.vector() - h).eval();  // Innovation
-        // std::cout << "Innovation: " << y.transpose() << std::endl;
-        // std::cout << "Jacobian: " << std::endl << H << std::endl;
-
+        auto y = (imu.vector() - h).eval();                            // Innovation
         auto S = H * _uncertainty * H.transpose() + R;                 // Innovation covariance
         auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
         _state = _state + K * y;
@@ -214,14 +222,16 @@ class PgaEKF
         EnuUncertainty R = enu.uncertainty();
         EnuUpdateJacobianMatrix H;
         auto h = EnuUpdateJacobian(_state, H);
-        // std::cout << "Predicted: " << h.transpose() << std::endl;
-        // std::cout << "Given: " << enu.vector().transpose() << std::endl;
-        auto y = (enu.vector() - h).eval();  // Innovation
-        // std::cout << "Innovation: " << y.transpose() << std::endl;
-        auto S = H * _uncertainty * H.transpose() + R;                 // Innovation covariance
+        auto y = (enu.vector() - h).eval();                            // Innovation
+        auto S = (H * _uncertainty * H.transpose() + R).eval();        // Innovation covariance
         auto K = (_uncertainty * H.transpose() * S.inverse()).eval();  // Kalman Gate
         _state = _state + K * y;
         _uncertainty = (UncertaintyMatrix::Identity() - K * H) * _uncertainty;
+    }
+
+    double motorNorm()
+    {
+        return std::sqrt(_state[6] * _state[6] + _state[5] * _state[5] + _state[4] * _state[4] + _state[0] * _state[0]);
     }
 
   private:
@@ -232,7 +242,7 @@ class PgaEKF
     StateVector _state;
     UncertaintyMatrix _uncertainty;
 
-    StateVector predictJacobian(const double dt, const StateVector& X, PredictJacobianMatrix& J)
+    static StateVector predictJacobian(const double dt, const StateVector& X, PredictJacobianMatrix& J)
     {
         StateVector S;
         // clang-format off
@@ -275,7 +285,7 @@ class PgaEKF
         return S;
     }
 
-    ImuVector ImuUpdateJacobian(const StateVector& X, ImuUpdateJacobianMatrix& J)
+    static ImuVector ImuUpdateJacobian(const StateVector& X, ImuUpdateJacobianMatrix& J)
     {
         ImuVector H;
         H[0] = -(2.0 * X[4] * X[6] - 2.0 * X[0] * X[5]) * kGravity + X[14];
@@ -298,22 +308,16 @@ class PgaEKF
         return H;
     }
 
-    EnuVector EnuUpdateJacobian(const StateVector& X, EnuUpdateJacobianMatrix& J)
+    static EnuVector EnuUpdateJacobian(const StateVector& X, EnuUpdateJacobianMatrix& J)
     {
         EnuVector H;
+        H[0] = -2 * X[1];
+        H[1] = -2 * X[2];
+        H[2] = -2 * X[3];
 
-        H[0] = -2.0 * X[6] * X[7] - 2.0 * X[3] * X[5] - 2.0 * X[2] * X[4] - 2.0 * X[0] * X[1];
-        H[1] = 2.0 * X[5] * X[7] - 2.0 * X[3] * X[6] + 2.0 * X[1] * X[4] - 2.0 * X[0] * X[2];
-        H[2] = -2.0 * X[4] * X[7] + 2.0 * X[2] * X[6] + 2.0 * X[1] * X[5] - 2.0 * X[0] * X[3];
-        H[3] = X[6] * X[6] + X[5] * X[5] + X[4] * X[4] + X[0] * X[0]; // e1 ^ (e2 ^ e3)
-
-        J.row(0) << -2.0 * X[1], -2.0 * X[0], -2.0 * X[4], -2.0 * X[5], -2.0 * X[2], -2.0 * X[3], -2.0 * X[7], -2.0 * X[6], 0, 0, 0, 0, 0,
-            0, 0, 0, 0;
-        J.row(1) << -2.0 * X[2], 2.0 * X[4], -2.0 * X[0], -2.0 * X[6], 2.0 * X[1], 2.0 * X[7], -2.0 * X[3], 2.0 * X[5], 0, 0, 0,
-            0, 0, 0, 0, 0, 0;
-        J.row(2) << -2.0 * X[3], 2.0 * X[5], 2.0 * X[6], -2.0 * X[0], -2.0 * X[7], 2.0 * X[1], 2.0 * X[2], -2.0 * X[4], 0, 0, 0,
-            0, 0, 0, 0, 0, 0;
-        J.row(3) << 2*X[0], 0, 0, 0, 2*X[4], 2*X[5], 2*X[6], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(0) << 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(1) << 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+        J.row(2) << 0, 0, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
         return H;
     }
