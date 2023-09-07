@@ -2,8 +2,8 @@
 
 # pga_ekf : Extended Kalman Filter using PGA Motor algebra 
 
-**Plane-based** (aka **Projective**) **Geometric Algebra** (PGA) in 3D is powerful tool for solving various kinds of Comuter Geometry problems.
-This project is attempt to solve classical **IMU+GPS Dead Reckoning** problem using PGA Motor algebra.
+**Plane-based** (aka **Projective**) **Geometric Algebra** (PGA) in 3D is powerful tool for solving various kinds of Computer Geometry problems.
+This project is attempt to solve classical **6DoF IMU+GPS Dead Reckoning** problem using PGA Motor algebra.
 
 
 At this moment we assume that our setup contains **6DoF IMU sensor** as well as some external **3D position sensor**, such as GPS.
